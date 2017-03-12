@@ -1,0 +1,72 @@
+rm: cannot remove `community_first_level.dat': Permission denied
+rm: cannot remove `community_second_level.dat': Permission denied
+rm: cannot remove `network.dat': Permission denied
+setting... -N 512
+setting... -k 68
+setting... -maxk 68
+setting... -minC 128
+setting... -maxC 128
+setting... -minc 32
+setting... -maxc 32
+setting... -mu1 0.529
+setting... -mu2 0.235
+
+**************************************************************
+number of nodes:	512
+average degree:	68
+maximum degree:	68
+exponent for the degree distribution:	2
+exponent for the community size distribution:	1
+mixing parameter1:	0.529
+mixing parameter2:	0.235
+number of overlapping nodes:	0
+number of memberships of the overlapping nodes:	0
+community size range set equal to [32 , 32]
+**************************************************************
+
+building subgraph number 1
+
+
+building communities... 
+connecting communities... 
+sub-network of 128 vertices and 2049 edges;	 average degree = 32.0156
+p_in: 0.517137	p_out: 0.166504
+
+
+*************************************************
+*************************************************
+building subgraph number 2
+
+
+building communities... 
+connecting communities... 
+sub-network of 128 vertices and 2049 edges;	 average degree = 32.0156
+p_in: 0.517137	p_out: 0.166504
+
+
+*************************************************
+*************************************************
+building subgraph number 3
+
+
+building communities... 
+connecting communities... 
+sub-network of 128 vertices and 2050 edges;	 average degree = 32.0312
+p_in: 0.517641	p_out: 0.166504
+
+
+*************************************************
+*************************************************
+building subgraph number 4
+
+
+building communities... 
+connecting communities... 
+sub-network of 128 vertices and 2049 edges;	 average degree = 32.0156
+p_in: 0.516129	p_out: 0.166829
+
+
+*************************************************
+*************************************************
+connecting macro communities
+*************  writing files  *************

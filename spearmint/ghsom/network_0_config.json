@@ -1,0 +1,1 @@
+{"likelihood": "GAUSSIAN", "variables": {"e_sg": {"max": 1.1, "min": 0.5, "type": "FLOAT", "size": 1}}, "main-file": "spearmint_ghsom.py", "experiment-name": "network_0_exp", "language": "PYTHON"}

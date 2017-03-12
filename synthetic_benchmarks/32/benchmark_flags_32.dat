@@ -1,0 +1,1 @@
+-N 512 -k 64 -maxk 64 -minc 32 -maxc 32 -minC 128 -maxC 128 -mu1 0.5 -mu2 0.25

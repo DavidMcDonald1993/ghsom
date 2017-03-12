@@ -1,0 +1,387 @@
+
+# coding: utf-8
+
+# In[1]:
+
+import os
+from shutil import copy, copyfile
+import subprocess
+from save_embedded_graph27 import main_binary as embed_main
+from spearmint_ghsom import main as ghsom_main
+import numpy as np
+import networkx as nx
+import pickle
+from time import time
+from __future__ import division
+
+def save_obj(obj, name):
+    with open(name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+def load_obj(name):
+    with open(name + '.pkl', 'rb') as f:
+        return pickle.load(f)
+    
+def fitness(x, gml, labels):
+    
+    params = {'w': 0.0001,
+         'eta': 0.0001,
+         'sigma': 1,
+          'e_sg': x,
+         'e_en': 0.8}
+    
+    return 1 - ghsom_main(params, gml, labels, lam=1000)[0][0]
+
+def neighbour(x, p=0.1):
+    return x + 2 * (np.random.rand() - 0.5) * p
+
+def simulated_annealing(net, gml_filename, labels, initial_x=0.8, 
+                        num_iter=50, start_temp=0.01, epsilon=0.05, no_improv_thres=10): 
+
+    #load_progress
+    progress_file = 'sa_progress_{}'.format(net)
+    if os.path.isfile('{}.pkl'.format(progress_file)):
+        start, xb, f_xb, temp, no_improvements = load_obj(progress_file)
+        print 'loading simulated annealing progress'
+    else:
+        #new progress
+        start = 0
+        xb = initial_x
+        f_xb = fitness(xb, gml_filename, labels)
+        temp = start_temp
+        no_improvements = 0
+    print 'starting from iteration {}'.format(start)
+
+    for i in range(start, num_iter):
+        
+        if no_improvements >= 2 * no_improv_thres:
+            print 'no improvement for {} iterations, stopping'.format(2 * no_improv_thres)
+            break
+        
+        if f_xb < epsilon:
+            print 'function minimised to tolerance of {}, stopping'.format(epsilon)
+            break
+
+        if no_improvements >= no_improv_thres:    
+            x = 0.8 + 2 * (np.random.rand() - 0.5) * 0.3
+            print 'no improvement for 10 epochs, trying random value'
+        else:    
+            x = neighbour(xb)
+
+        print 'trying x={}'.format(x)
+
+        temp = 0.99 * temp
+
+        f_x = fitness(x, gml_filename, labels)
+        
+        p = np.exp((f_xb - f_x) / temp)
+        
+        print 'f_xb={}, f_x={}, p={}'.format(f_xb, f_x, p)
+
+        if f_x < f_xb or np.random.rand() < p:
+            xb = x
+            f_xb = f_x
+            
+            no_improvements = 0
+        else:
+            no_improvements += 1
+
+        #save progress
+        save_obj((i + 1, xb, f_xb, temp, no_improvements), progress_file)
+                
+        print 'epoch={}, xb={}, f_xb={}'.format(i, xb, f_xb)    
+        print
+
+    return xb
+
+def graph_measures(gml_filename):
+    
+    G = nx.read_gml(gml_filename)
+    
+    density = nx.density(G)
+    
+    arr = np.array([val for key, val in nx.degree_centrality(G).iteritems()])
+    arr = np.sort(arr)[::-1]
+    
+    k = len(arr)
+
+    k1 = k
+
+    sum = np.sum(arr)
+    
+    var = 1
+
+    while var > 0.95:
+
+        k -= 1
+
+        var = np.sum(arr[:k]) / sum 
+    
+    centrality = k / k1
+    
+    assortativity = nx.degree_assortativity_coefficient(G)
+    
+    connectivity = nx.node_connectivity(G)
+    
+    return np.array([density, centrality, assortativity, connectivity])
+
+
+# In[ ]:
+
+from scipy.optimize import minimize_scalar
+
+def fitness(x, gml, labels):
+    
+    params = {'w': 0.0001,
+         'eta': 0.0001,
+         'sigma': 1,
+          'e_sg': x,
+         'e_en': 0.8}
+    
+    return 1 - ghsom_main(params, gml, labels, lam=1000)[0][0]
+
+res = minimize_scalar(fitness, bounds=(0.5, 1), method='bounded', 
+                      args=('embedded_football.gml', 'value'), 
+                      options={'maxiter' : 5, 'disp' : True})
+
+
+# In[13]:
+
+print res
+
+
+# In[2]:
+
+#root dir
+os.chdir("C:\Miniconda3\Jupyter\GHSOM_simplex_dsd")
+
+#save directory
+dir = os.path.abspath("parameter_tests_small_density_simulated_annealing")
+
+#number of networks to generate
+num_networks = 200
+
+#number of times to repeat
+num_jobs = 10
+
+#make save directory
+if not os.path.isdir(dir):
+    os.mkdir(dir)
+
+#change to dir
+os.chdir(dir)    
+
+#network file names -- output of network generator
+network = "network.dat"
+first_level = "community.dat"
+
+#community labels
+labels = 'firstlevelcommunity'
+
+#number of nodes in the graph
+N = 64
+
+MAX_EDGES = N * (N - 1) / 2 + 1
+MIN_DENSITY = 0.05
+MAX_DENSITY = 0.4
+
+if os.path.isfile('data.pkl'):
+    data = load_obj('data')
+    print 'loading data'
+else:
+    data = np.zeros((num_networks, 4))
+
+if os.path.isfile('best_e_sgs.pkl'):
+    best_e_sgs = load_obj('best_e_sgs')
+    print 'loading best e_sgs'
+else:
+    best_e_sgs = np.zeros(num_networks)
+
+for i in range(num_networks):
+    
+    #make benchmark parameter file
+    filename = "benchmark_flags_{}.dat".format(i)
+        
+    if not os.path.isfile(filename):
+    
+        #number of edges
+        num_edges = np.random.randint(MAX_EDGES * MIN_DENSITY, MAX_EDGES * MAX_DENSITY)
+        
+        print 'num edges: {}'.format(num_edges)
+
+        #number of nodes in micro community
+        minc = 5
+        maxc = np.random.randint(16, 30)
+
+        #average degree
+        k = np.ceil(num_edges / N)
+
+        #max degree
+        maxk = 2 * k
+
+        #mixing factor
+        mu = np.random.rand() * 0.5
+
+        print_string = '-N {} -k {} -maxk {} -minc {} -maxc {} -mu {}'.format(N, k, maxk, minc, maxc, mu)
+        
+        print print_string
+        with open(filename,"w") as f:
+            f.write(print_string)
+        print 'written flag file: {}'.format(filename)
+    
+    #copy executable
+    ex = "benchmark.exe"   
+    if not os.path.isfile(ex):
+
+        source = "C:\\Users\\davem\\Documents\\PhD\\Benchmark Graph Generators\\binary_networks\\benchmark.exe"
+        copyfile(source, ex)
+        
+        print 'copied executable'
+
+    #cmd strings
+    change_dir_cmd = "cd {}".format(dir)
+    generate_network_cmd = "benchmark -f {}".format(filename)
+
+    #output of cmd
+    output_file = open("cmd_output.out".format(i), 'w')
+    
+    network_rename = '{}_{}'.format(i, network)
+    first_level_rename = '{}_{}'.format(i, first_level)
+
+    #generate network and rename
+    if not os.path.isfile(network_rename):
+
+        process = subprocess.Popen(change_dir_cmd + " && " + generate_network_cmd, 
+                                stdout=output_file, 
+                                stderr=output_file, 
+                                shell=True)
+        process.wait()
+
+        print 'generated network {}'.format(i)
+        
+        ##rename
+        os.rename(network, network_rename)
+        os.rename(first_level, first_level_rename)
+
+    gml_filename = 'embedded_network_{}.gml'.format(i)    
+
+    #embed into gml file
+    if not os.path.isfile(gml_filename):
+
+        ##embed graph
+        embed_main(network_rename, first_level_rename, gml_filename)
+
+        print 'embedded network {} as {} in {}'.format(i, gml_filename, os.getcwd())
+
+    if not np.all(data[i]):
+        data[i] = graph_measures(gml_filename)
+        save_obj(data, 'data')
+        print 'graph measures for network {}: {}'.format(i, data[i])
+    
+    if not np.all(best_e_sgs[i]):
+        
+        print 'using simulated annealing to optimise e_sg on {}'.format(gml_filename)
+        
+        best_e_sgs[i] = simulated_annealing(i, gml_filename, labels)
+        
+        print 'best setting: {}'.format(best_e_sgs[i])
+        
+        save_obj(best_e_sgs, 'best_e_sgs')
+        print 'saved best setting'
+        print
+    
+print 'DONE'
+
+
+# In[3]:
+
+for i in range(num_networks):
+    
+    print i
+    print 'density={}'.format(data[i, 0])
+    print 'degree={}'.format(data[i, 1])
+    print 'assortativity={}'.format(data[i, 2])
+    print 'connectivity={}'.format(data[i, 3])
+    print best_e_sgs[i]
+    print
+
+
+# In[6]:
+
+def trendline(xd, yd, order=1, c='r', alpha=1, Rval=False):
+    """Make a line of best fit"""
+
+    #Calculate trendline
+    coeffs = np.polyfit(xd, yd, order)
+
+    intercept = coeffs[-1]
+    slope = coeffs[-2]
+    power = coeffs[0] if order == 2 else 0
+
+    minxd = np.min(xd)
+    maxxd = np.max(xd)
+
+    xl = np.array([minxd, maxxd])
+    yl = power * xl ** 2 + slope * xl + intercept
+
+    #Plot trendline
+    plt.plot(xl, yl, c, alpha=alpha)
+
+    #Calculate R Squared
+    p = np.poly1d(coeffs)
+
+    ybar = np.sum(yd) / len(yd)
+    ssreg = np.sum((p(xd) - ybar) ** 2)
+    sstot = np.sum((yd - ybar) ** 2)
+    Rsqr = ssreg / sstot
+
+    if not Rval:
+        #Plot R^2 value
+        plt.text(0.8 * maxxd + 0.2 * minxd, 0.8 * np.max(yd) + 0.2 * np.min(yd),
+                 '$R^2 = %0.2f$' % Rsqr)
+    else:
+        #Return the R^2 value:
+        return Rsqr
+
+import matplotlib.pyplot as plt
+
+densities = data[:,0]
+densities[densities>0.4] = 0.2
+degrees = data[:,1]
+assortativity = data[:,2]
+connectivity = data[:,3]
+
+plt.plot(connectivity, best_e_sgs, 'x')
+trendline(connectivity, best_e_sgs)
+plt.xlabel('connectivity')
+plt.ylabel('best $\epsilon_{sg}$')
+plt.show()
+
+
+# In[20]:
+
+import scipy
+slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(degrees, best_e_sgs)
+print 'slope={}'.format(slope)
+print 'intercept={}'.format(intercept)
+print 'r_value={}'.format(r_value)
+print 'p_value={}'.format(p_value)
+print 'std_err={}'.format(std_err)
+
+
+# In[8]:
+
+import os
+
+os.chdir("C:\Miniconda3\Jupyter\GHSOM_simplex_dsd")
+
+print graph_measures("embedded_karate.gml")
+print graph_measures("embedded_dolphin.gml")
+print graph_measures("embedded_polbooks.gml")
+print graph_measures("embedded_football.gml")
+
+
+# In[ ]:
+
+
+

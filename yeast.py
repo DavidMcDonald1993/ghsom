@@ -1,0 +1,93 @@
+
+# coding: utf-8
+
+# In[3]:
+
+from save_embedded_graph27 import main as embed_main
+
+embed_main('Y2H_union.txt', 'embedded_yeast_union.gml')
+
+
+# In[7]:
+
+from spearmint_ghsom import main_no_labels as ghsom_main
+import pickle
+import os
+
+def save_obj(obj, name):
+    with open(name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+def load_obj(name):
+    with open(name + '.pkl', 'rb') as f:
+        return pickle.load(f)
+    
+os.chdir("/home/david/Documents/ghsom")
+
+p = 0.8
+
+#ghsom parameters
+params = {'w': 0.0001,
+         'eta': 0.0001,
+         'sigma': 1,
+          'e_sg': p,
+         'e_en': 0.8}
+
+G, map = ghsom_main(params, 'embedded_yeast_union.gml')
+
+print 'number of communities detected: {}'.format(len(map))
+save_obj((G, map), 'yeast_union_communities_{}'.format(p))
+
+print 'done'
+
+
+# In[8]:
+
+import os
+
+os.chdir("/home/david/Documents/ghsom")
+
+G, map = load_obj('yeast_union_communities_{}'.format(p))
+print 'num communities: {}'.format(len(map))
+
+
+# In[9]:
+
+min_nodes = 10
+
+##remove neurons with no assigned nodes
+for n, d in map.nodes(data=True):
+    if len(d['ls']) < min_nodes:
+        map.remove_node(n)
+        print 'removed node {}'.format(n)
+
+
+# In[10]:
+
+import os
+import networkx as nx
+import numpy as np
+##save to communities directory
+os.chdir("/home/david/Documents/ghsom")
+
+dir_name = "union_communities_08"
+
+if not os.path.isdir(dir_name):
+    os.mkdir(dir_name)
+    print 'made directory {}'.format(dir_name)
+    
+os.chdir(dir_name)
+
+shortest_path = nx.floyd_warshall_numpy(map).astype(np.int)
+np.savetxt("shortest_path.csv", shortest_path, fmt='%i', delimiter=",")
+print 'written shortest path matrix'
+
+c = 0
+for n, d in map.nodes(data=True):
+    ls = d['ls']
+    with open('community_{}.txt'.format(c),'w') as f:
+        for l in ls:
+            f.write('{}\n'.format(l))
+    print 'written community_{}.txt'.format(c)
+    c += 1
+

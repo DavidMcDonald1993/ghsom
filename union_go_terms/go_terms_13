@@ -1,0 +1,8 @@
+"","GO.ID","Term","Annotated","Significant","Expected","Rank in elimFisher","classicFisher","elimFisher"
+"1","GO:0045944","positive regulation of transcription fro...",135,4,0.78,1,"0.0053","0.0053"
+"2","GO:0071824","protein-DNA complex subunit organization",75,3,0.43,2,"0.0076","0.0076"
+"23","GO:0034622","cellular macromolecular complex assembly",215,4,1.24,3,"0.0271","0.0271"
+"31","GO:0006302","double-strand break repair",54,2,0.31,4,"0.0365","0.0365"
+"32","GO:0065004","protein-DNA complex assembly",54,2,0.31,5,"0.0365","0.0365"
+"33","GO:0051656","establishment of organelle localization",56,2,0.32,6,"0.0391","0.0391"
+"34","GO:0065003","macromolecular complex assembly",249,4,1.43,7,"0.0439","0.0439"

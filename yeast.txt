@@ -1,0 +1,113 @@
+
+import matplotlib.pyplot as plt
+import networkx as nx
+
+# G = nx.Graph()
+
+# for line in open('Uetz_screen.txt','r'):
+#     G.add_edge()
+#     print line.rstrip().split('\t')
+
+G = nx.read_edgelist('Uetz_screen.txt')
+print len(G.nodes())
+print len(G.edges())
+print G.nodes()[55]
+
+from save_embedded_graph27 import main as embed_main
+
+embed_main('Uetz_screen.txt', 'embedded_yeast.gml')
+
+from spearmint_ghsom import main_no_labels as ghsom_main
+
+#ghsom parameters
+params = {'w': 0.0001,
+         'eta': 0.0001,
+         'sigma': 1,
+          'e_sg': 0.8,
+         'e_en': 0.8}
+
+G, map = ghsom_main(params, 'embedded_yeast.gml')
+
+import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
+from spearmint_ghsom import modularity
+
+print 'num communities detected: {}'.format(len(map))
+
+n_1, d_1 = map.nodes(data=True)[0]
+n_2, d_2 = map.nodes(data=True)[1]
+
+H = G.subgraph([n for n in G.nodes() if n in d_1['ls']])
+# nx.draw_networkx(H)
+# plt.show()
+
+I = G.subgraph([n for n in G.nodes() if n in d_2['ls']])
+# nx.draw_networkx(I)
+# plt.show()
+
+print len(H)
+print modularity(G, H)
+print len(I)
+print modularity(H, I)
+
+# J = nx.compose(H, I)
+# nx.draw_networkx(J, pos=nx.spring_layout(J))
+# plt.show()
+
+# labels = nx.get_node_attributes(H, 'label')
+# for k, label in labels.items():
+#     print label
+
+import pymysql.cursors
+# Connect to the database
+connection = pymysql.connect(host='mysql-amigo.ebi.ac.uk',
+            user='go_select',
+            password='amigo',
+            db='go_latest',
+            port=4085,
+            cursorclass=pymysql.cursors.DictCursor)
+try:
+            with connection.cursor() as cursor:
+            # Create a new record
+                sql = " SELECT * FROM term WHERE is_obsolete=1;"
+                cursor.execute(sql)
+                results = cursor.fetchall()
+            # connection is not autocommit by default. So you must commit to save
+            # your changes.
+            connection.commit()
+            print 'completed query'
+finally:
+    connection.close()
+
+for result in results:
+    print result['acc']
+
+import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
+
+G = nx.read_edgelist('Uetz_screen.txt')
+
+sgs = nx.connected_component_subgraphs(G)
+
+H = max(nx.connected_component_subgraphs(G), key=len)
+
+nx.draw_networkx(H)
+plt.show()
+
+n1 = G.nodes()[500]
+neighbours = G.neighbors(n1)
+
+H = G.subgraph([n1] + neighbours)
+
+pos = nx.spring_layout(H)
+
+nx.draw_networkx_nodes(H,pos)
+nx.draw_networkx_edges(H,pos)
+nx.draw_networkx_labels(H,pos)
+plt.show()
+
+print H.nodes()
+
+

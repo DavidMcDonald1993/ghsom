@@ -1,0 +1,512 @@
+
+import numpy as np
+import networkx as nx
+import som_functions as som
+import math
+import sklearn.metrics as met
+
+#desired number of nodes in random graph
+num_nodes = 100
+
+# generate graph
+#G = generate_graph(num_nodes, 0.1)
+#G = nx.davis_southern_women_graph()
+#G = nx.karate_club_graph()
+G = benchmark_graph("bin_network.dat", "community.dat")
+#G = benchmark_hierarchical_graph("network.dat", "community_first_level.dat", "community_second_level.dat")
+
+print('loaded G')
+
+#project G to X
+#X = laplacian_eigenmap(G, 3, 1)
+X = dsd_embedding(G)
+
+print('projected G onto X')
+
+X = pca(X, 0.95)
+
+print('used pca to lower dimension and preserve 95% variation')
+
+#number of epochs to train == lambda
+lam = 100
+
+#initial learning rate
+eta_0 = 0.05
+
+#initial neighbourhood size
+sigma_0 = 3
+
+#error must drop below this percentage of the error of the previous level for growth of this layer to stop
+e_sg = 0.8
+
+#error must be greater than this times previous error for expansion
+e_en = 0.9
+
+#number of training patterns to observe with each epoch
+N = min(100, num_nodes)
+
+#layer of GHSOM
+layer = 0;
+
+#desired number of initial neurons
+n = 1
+
+#run ghsom algorithm
+network, MQE = ghsom(G, X, lam, eta_0, sigma_0, math.inf, e_sg, e_en, layer, n)
+
+print('ghsom algorithm has terminated')
+print('mean network error:',MQE)
+
+##save graph to gml file
+nx.write_gml(G, "ghsom.gml")
+
+##calculate error
+mi_score = mutual_information(G)
+print('mutual information score',mi_score)
+
+##GHSOM algorithm
+
+#X: graph in euclidean space
+#ls: list of nodes to consider
+#l: lambda -- the number of epochs to train before assessing error
+#eta: learning rate
+#sigma: initial neighbourhood range
+#e_0: error of previous layer
+#e_sg: error must reduce by this much for growth to stop
+#e_en: error must be greater than this to expand neuron
+#layer: layer of som
+#n: desired initial number of neurons
+def ghsom(G, X, l, eta, sigma, e_0, e_sg, e_en, layer, n):
+    
+    #number of nodes in G
+    num_nodes = len(X)
+    
+    ##number of training patterns to visit
+    N = min(num_nodes, 100)
+    
+    #create som for this neuron
+    #begin with 2x2 lattice of nodes
+    network = som.initialise_network(X, n)
+    
+    ##inital training phase
+    
+    #train for l epochs
+    network = som.train_network(X, network, l, eta, sigma, N)
+
+    #classify nodes
+    network = som.assign_nodes(X, network, layer)
+
+    #calculate mean network error
+    network, MQE = som.update_errors(network)
+    
+    ##som growth phase
+    #repeat until error is low enough
+    while MQE > e_sg * e_0:
+        
+        #find neuron with greatest error
+        error_unit = som.identify_error_unit(network)
+        
+        #expand network
+        network = som.expand_network(network, error_unit)
+        
+        #order neurons
+        network = som.remove_neuron_overlap(network)
+        
+        #train for l epochs
+        network = som.train_network(X, network, l, eta, sigma, N)
+
+        #classify nodes
+        network = som.assign_nodes(X, network, layer)
+
+        #calculate mean network error
+        network, MQE = som.update_errors(network)
+        
+        print('ghsom has expanded som',layer,'error',MQE)
+        
+    print('ghsom has terminated expansion',layer)
+    print('error',MQE)
+    
+    #recalculate error after neuron expansion
+    MQE = 0
+    
+    ##neuron expansion phase
+    #iterate thorugh all neruons and find neurons with error great enough to expand
+    for i in range(len(network)):
+        
+        #unpack
+        r, v, ls, e, n = network[i]
+        
+        #check error
+        if e > e_en * e_0 or e_0 == math.inf:
+            
+            #subgraph
+            H = G.subgraph([G.nodes()[n] for n in ls])
+            
+            ##subset of datapoint to expand
+            Y = X[ls]
+            
+            #recursively run algorithm to create new network for subgraph of this neurons nodes
+            n, e = ghsom(H, Y, l, eta, sigma, e, e_sg, e_en, layer + 1, 4)
+            
+            #repack
+            network[i] = r, v, ls, e, n
+            
+            print('ghsom has built new layer',layer+1)
+            
+        #increase overall network error
+        MQE += e
+    
+    #mean MQE
+    MQE /= len(network)
+    
+    ##label graph
+    G = label_graph(G, network, layer)
+    
+    ##randomly generate colours for plotting
+    colours = np.random.rand(len(network), 3)
+    
+    ##visualise in ghsom function
+    som.visualise_graph(G, colours, layer)
+    som.visualise_network(network, colours, layer)
+    
+    #return network
+    return network, MQE
+
+##label nodes of graph
+def label_graph(G, network, layer):
+    
+    ##number of neurons
+    num_neurons = len(network)
+    
+    for i in range(num_neurons):
+        
+        ##unpack network
+        r, v, l, e, net = network[i]
+        
+        for n in l:
+            
+            #node name
+            node_name = G.nodes()[n]
+            
+            #assign this node to cluster
+            G.node[node_name]['community'+str(layer)] = i
+            
+    #return graph
+    return G
+
+##generate random directed graph with random weights
+def generate_graph(num_nodes, p):
+    
+    #initialise graph
+    G = nx.Graph()
+    
+    G.add_nodes_from(range(num_nodes))
+    
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+    
+            #add edge with p probablity
+            if np.random.rand() < p:
+                w = np.random.rand()
+                G.add_edge(i, j, weight=w)
+    
+    #return graph
+    return G
+    
+
+##function to read in attributes from file and return a dictionary
+def read_attributes(filepath):
+    
+    #initialise dictionary
+    d = {}
+    
+    #open file
+    with open(filepath) as f:
+        
+        #iterate over lines in f
+        for l in f:
+            
+            #separate into key and value
+            k, v = l.split()
+            
+            #add to dictionary
+            d[k] = v
+    
+    #return
+    return d
+
+##function to generate benchmark graph
+def benchmark_graph(edge_path, c_path):
+
+    #construct graph from edge list
+    G = nx.read_edgelist(edge_path)
+
+    #create dictionarys of attributes
+    c = read_attributes(c_path)
+
+    #set attributes of G
+    nx.set_node_attributes(G, 'firstlevelcommunity', c)
+    
+    #return graph
+    return G
+
+##function to generate benchmark graph
+def benchmark_hierarchical_graph(edge_path, c1_path, c2_path):
+
+    #construct graph from edge list
+    G = nx.read_edgelist(edge_path)
+
+    #create dictionarys of attributes
+    c1 = read_attributes(c1_path)
+    c2 = read_attributes(c2_path)
+
+    #set attributes of G
+    nx.set_node_attributes(G, 'firstlevelcommunity', c1)
+    nx.set_node_attributes(G, 'secondlevelcommunity', c2)
+    
+    #return graph
+    return G
+
+##function to calculate community detection error given a generated benchmark graph
+def mutual_information(G):
+    
+    #assigned first layer community
+    first_level_community = nx.get_node_attributes(G, 'firstlevelcommunity')
+    
+    #predicted first layer community
+    pred_first_level_community = nx.get_node_attributes(G, 'community1')
+    
+#     if 'secondlevel' in G.node[0]:
+    
+#         #assigned second layer community
+#         community2 = nx.get_node_attributes(G, 'secondlevelcommunity')
+
+#         #assigned second community
+#         ass_community2 = nx.get_node_attributes(G, 'predsecondlevelcommunity')
+
+    labels_true = [v for k,v in first_level_community.items()]
+    labels_pred = [v for k,v in pred_first_level_community.items()]
+    
+    #mutual information to score classifcation
+    score = met.adjusted_mutual_info_score(labels_true, labels_pred)
+    
+    #return
+    return score
+
+##laplacian eigenmap embedding
+def laplacian_eigenmap(G, k, sigma):
+    
+    #number of nodes in the graph
+    n = nx.number_of_nodes(G)
+    
+    #distance matrix
+    fl = nx.floyd_warshall(G)
+    
+    #intitialise distance matrix
+    d = np.zeros((n, n))
+    
+    #initialise adjacency matric
+    A = np.zeros((n, n))
+    
+    #find closest k neighbours
+    for i in range(n):
+        n1 = G.nodes()[i]
+        for j in range(n):
+            n2 = G.nodes()[j]
+            d[i,j] = fl[n1][n2]
+            
+        #get id of k nearest nodes
+        sorted_ids = np.argsort(d[i])
+        
+        #k nearest neighbors
+        knn = sorted_ids[:k]
+        
+        #gaussian similarity -- heat kernel
+        for j in knn:
+            A[i,j] = np.exp( -d[i,j] ** 2 / (2 * sigma ** 2) )   
+        
+    #degree matrix
+    D = np.sum(A, axis=1)
+    
+    #normalised graph laplacian
+    N = np.identity(n) - np.diag(D ** -0.5) @ A @ np.diag(D ** -0.5)
+    
+    #eigen decompose
+    l, U = np.linalg.eigh(N)
+    
+    ##sort eigenvalues (and eigenvectors) into ascending order
+    idx = l.argsort()
+    l = l[idx]
+    U = U[:,idx]
+    
+    ##dimensions to keep
+    k = len(l[l < 1e-12])
+    
+    print('embedding dim lost',k)
+    
+    #position matrix
+    X = np.diag(D ** -0.5) @ U[:,k:]
+    
+    #return 
+    return X
+
+#perform principle component analysis
+def pca(X, preserved_var):
+    
+    #number of data points
+    n = len(X)
+    d = len(X[0])
+    
+    #centre
+    X = X - np.ones((n, n)) @ X / n
+    
+    #estimate co-variance matrix
+    C = 1 / n * np.transpose(X) @ X
+    
+    #eigen decompose C
+    l, U = np.linalg.eigh(C)
+    
+    ##sort eigenvalues (and eigenvectors) into descending order
+    idx = l.argsort()[::-1]
+    l = l[idx]
+    U = U[:,idx]
+    
+    #number of eigenvalues
+    num_eig = len(l)
+    
+    #normalise U
+    for j in range(num_eig):
+        U[:,j] = U[:,j] / np.linalg.norm(U[:,j])
+    
+    #sum of eigenvalues
+    sl = sum(l)
+    
+    #determine number of dimensions to keep
+    k = num_eig - 1
+    var = 1
+    
+    while var > preserved_var:
+        
+        k -= 1
+        var = sum(l[:k]) / sl
+        
+    k += 1
+    
+    print("pca dim lost",d-k)
+    
+    #project X
+    Y = X @ U[:,:k]
+    
+    #return
+    return Y
+
+##function to compute G = (I - P + W)^-1
+#N: normalised laplacian
+#d: list of degrees
+#v: eigenvector corresponding to smallest eigenvalue
+def compute_gr(N, B, d, v):
+    
+    #number of nodes in he graph
+    n = len(N)
+    
+    #initialise Gr
+    Gr = np.zeros((n, n))
+    
+    for i in range(n):
+        
+        #b2
+        b2 = (np.transpose(v) @ B[:,i]) * v
+        
+        #b1 
+        b1 = B[:,i] - b2
+        
+        #x1
+        x1 = np.linalg.solve(N, b1)
+        
+        #add to Gr
+        Gr[:,i] = np.diag(d ** 0.5) @ (x1 + b2)
+    
+    #return Gr
+    return Gr
+
+##function to compute DSD matrix using AMG method
+#N: laplacian matrix
+#d: list of degrees
+#v: smallest eigenvector
+def dsd(N, d, v):
+    
+    #number of nodes in G
+    n = len(N)
+    
+    #initialize dsd matrix
+    dsd = np.zeros((n, n))
+    
+    #B
+    B = np.diag(d ** -0.5) @ np.identity(n)
+    
+    #compute G
+    G = compute_gr(N, B, d, v)
+    
+    #compute dsd for each pair
+    for i in range(n):
+        for j in range(i, n):
+            
+            #compute distance
+            dis = np.linalg.norm(np.transpose(B[:,i] - B[:,j]) @ G, ord=1)
+            
+            #add to dsd matrix
+            dsd[i,j] = dis
+            dsd[j,i] = dis
+    
+    #return
+    return dsd
+
+##dsd embedding
+def dsd_embedding(G):
+    
+    #number of nodes in the graph
+    n = nx.number_of_nodes(G)
+    
+    #adjacency matrix
+    A = nx.adjacency_matrix(G).toarray()
+    
+    #list of degrees
+    deg = np.sum(A, axis=1)
+    
+    #normalised graph laplacian
+    N = np.identity(n) - np.diag(deg ** -0.5) @ A @ np.diag(deg ** -0.5)
+    
+    #eigen decompose
+    l, U = np.linalg.eigh(N)
+    
+    ##sort eigenvalues (and eigenvectors) into ascending order
+    idx = l.argsort()
+    l = l[idx]
+    U = U[:,idx]
+    
+    #compute dsd matrix as metric
+    D = dsd(N, deg, U[:,0])
+    
+    #centreing matrix
+    C = np.identity(n) - np.ones((n, n)) / n
+    
+    #similarity matrix
+    K = - 1/2 * C @ D @ C
+    
+    #eigen decompose K
+    l, U = np.linalg.eigh(K)
+    
+    ##sort eigenvalues (and eigenvectors) into ascending order
+    idx = l.argsort()
+    l = l[idx]
+    U = U[:,idx]
+    
+    ##dimensions to keep
+    k = len(l[l < 1e-12])
+    
+    print('dsd embedding dim lost',k)
+    
+    #position matrix
+    X = U[:,k:] @ np.diag(l[k:] ** 0.5)
+    
+    return X

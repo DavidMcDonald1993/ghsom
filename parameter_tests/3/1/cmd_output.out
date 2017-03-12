@@ -1,0 +1,64 @@
+setting... -N 96
+setting... -k 32
+setting... -maxk 32
+setting... -minc 32
+setting... -maxc 32
+setting... -mu 0.5
+
+**************************************************************
+number of nodes:	96
+average degree:	32
+maximum degree:	32
+exponent for the degree distribution:	2
+exponent for the community size distribution:	1
+mixing parameter:	0.5
+number of overlapping nodes:	0
+number of memberships of the overlapping nodes:	0
+community size range set equal to [32 , 32]
+**************************************************************
+
+rm: cannot remove `statistics.dat': Permission denied
+building communities... 
+connecting communities... 
+recording network...
+
+
+---------------------------------------------------------------------------
+network of 96 vertices and 1536 edges;	 average degree = 32
+
+average mixing parameter: 0.5 +/- 0
+p_in: 0.516129	p_out: 0.25
+
+
+setting... -N 96
+setting... -k 32
+setting... -maxk 32
+setting... -minc 32
+setting... -maxc 32
+setting... -mu 0.5
+
+**************************************************************
+number of nodes:	96
+average degree:	32
+maximum degree:	32
+exponent for the degree distribution:	2
+exponent for the community size distribution:	1
+mixing parameter:	0.5
+number of overlapping nodes:	0
+number of memberships of the overlapping nodes:	0
+community size range set equal to [32 , 32]
+**************************************************************
+
+rm: cannot remove `statistics.dat': Permission denied
+building communities... 
+connecting communities... 
+recording network...
+
+
+---------------------------------------------------------------------------
+network of 96 vertices and 1536 edges;	 average degree = 32
+
+average mixing parameter: 0.5 +/- 0
+p_in: 0.516129	p_out: 0.25
+
+

@@ -1,0 +1,32 @@
+setting... -N 64
+setting... -k 8.0
+setting... -maxk 16.0
+setting... -minc 16.0
+setting... -maxc 16.0
+setting... -mu 0.1
+
+**************************************************************
+number of nodes:	64
+average degree:	8
+maximum degree:	16
+exponent for the degree distribution:	2
+exponent for the community size distribution:	1
+mixing parameter:	0.1
+number of overlapping nodes:	0
+number of memberships of the overlapping nodes:	0
+community size range set equal to [16 , 16]
+**************************************************************
+
+rm: cannot remove `statistics.dat': Permission denied
+building communities... 
+connecting communities... 
+recording network...
+
+
+---------------------------------------------------------------------------
+network of 64 vertices and 259 edges;	 average degree = 8.09375
+
+average mixing parameter: 0.0949344 +/- 0.0708944
+p_in: 0.4875	p_out: 0.016276
+
+
