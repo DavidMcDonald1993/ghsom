@@ -22,6 +22,23 @@ def load_obj(name):
         return pickle.load(f)
 
 
+# In[29]:
+
+import sys
+from time import sleep
+from __future__ import division
+
+len = 100
+
+for i in range(100):
+    line = "[" + "=" * int(i * len / 100) + ">" + "-" * int((100 - i - 1) * len / 100) + "]"
+    sys.stdout.write("\r{}".format(line))
+    sys.stdout.flush()
+#     print line
+    sleep(0.1)
+sys.stdout.write(" DONE")
+
+
 # In[4]:
 
 import os

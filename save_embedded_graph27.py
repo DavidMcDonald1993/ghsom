@@ -11,44 +11,6 @@ import sklearn.metrics as met
 import sklearn.manifold as man
 from time import time
 
-# ##function to return all connected components
-# def connected_components(G):
-    
-#     #number of nodes in the graph
-#     n = nx.number_of_nodes(G)
-    
-#     #adjacency matrix
-#     A = nx.adjacency_matrix(G).toarray()
-    
-#     #list of degrees
-#     deg = np.sum(A, axis=1)
-    
-#     #normalised graph laplacian
-#     N = np.identity(n) - np.dot(np.dot(np.diag(deg ** -0.5), A), np.diag(deg ** -0.5))
-    
-#     #eigen decompose normalised laplacian
-#     l, U = np.linalg.eigh(N)
-    
-#     ##sort eigenvalues (and eigenvectors) into ascending order
-#     idx = l.argsort()
-#     l = l[idx]
-#     U = U[:,idx]
-    
-#     num_connected_components = len(l[l<1e-12])
-    
-#     connected_graphs = []
-    
-#     for i in range(num_connected_components):
-        
-#         ids = U[:,i].nonzero()[0]
-        
-#         H = G.subgraph([G.nodes()[n] for n in ids])
-#         nx.set_node_attributes(H, 'connected_component', i)
-        
-#         connected_graphs.append(G.subgraph([G.nodes()[n] for n in ids]))
-        
-#     return connected_graphs
-
 ##floyds embedding
 def floyd_embedding(G):
     
