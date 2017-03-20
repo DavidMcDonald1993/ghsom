@@ -87,7 +87,7 @@ def train_network(X, network, num_epochs, eta_0, sigma_0, N):
             update_weights(x, network, win_neuron, eta, sigma)
             
         # drop neighbourhood
-        sigma = sigma_0 * np.exp(-2 * sigma_0 * e / num_epochs);
+#         sigma = sigma_0 * np.exp(-2 * sigma_0 * e / num_epochs);
 
 # winning neuron
 def winning_neuron(x, network):

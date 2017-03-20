@@ -1,16 +1,32 @@
 
+source("https://bioconductor.org/biocLite.R")
+biocLite("org.Hs.eg.db")
+
 #libraries
 library(GO.db)
 library(topGO)
+library(org.Hs.eg.db)
 library(org.Sc.sgd.db)
+library(GOSemSim)
+
+# db <- org.Sc.sgd.db
+# mapping <- "org.Sc.sgd.db"
+# ID <- "ENSEMBL"
+db <- org.Hs.eg.db
+mapping <- "org.Hs.eg.db"
+ID <- "ENTREZ"
 
 #background gene list
 setwd('/home/david/Documents/ghsom')
-allGenes <- scan("Y2H_union.txt", character())
+# allGenes <- scan("Y2H_union.txt", character())
+allGenes <- scan("HI-II-14.txt", character())
 allGenes <- unique(allGenes) 
 
+length(allGenes)
+
 ##load all community gene lists
-setwd("/home/david/Documents/ghsom/union_communities_08")
+# setwd("/home/david/Documents/ghsom/union_communities_09")
+setwd("/home/david/Documents/ghsom/hi_communities_08")
 
 g <- list()
 numCom <- 0
@@ -25,18 +41,28 @@ numCom
 #distances between neurons
 shortest.path <- read.csv("shortest_path.csv", sep=",", header=FALSE)
 
-library(ontologyIndex)
-go <- get_ontology("/home/david/Documents/ghsom/db/go-basic.obo")
-
 find_representative_term <- function(terms){
+    
     counts <- numeric(length(terms))
     names(counts) <- terms
 
     for (term in terms) {
-        ancestors <- get_term_property(go, "ancestors", term, as_names = FALSE)
+        
+        ancestors <- as.list(GOBPANCESTOR[term])
         for (ancestor in ancestors) {
             counts[ancestor] <- counts[ancestor] + 1
         }
+#         result <- tryCatch({
+#             ancestors <- get_term_property(go, "ancestors", term, as_names = FALSE)
+#             for (ancestor in ancestors) {
+#                 counts[ancestor] <- counts[ancestor] + 1
+#             }
+#         }, warning <- function(w) {
+#             print("warning")
+#         }, error <- function(e) {
+#             print("error")
+#         }, finally <- {})
+
     }
     return (sort(names(counts), decreasing=TRUE)[1])
 }
@@ -61,17 +87,23 @@ for (c in 1:numCom){
     geneLists[[c]] <- geneList
     
     #construct topGO object
+    #yeast
+#     GOdata <- new("topGOdata", description=sprintf("topGO object for community %s", c),
+#                   ontology = "BP", allGenes = geneList,
+#                   annotationFun = annFUN.org, mapping = "org.Sc.sgd.db", 
+#                   ID = "ENSEMBL", nodeSize = 10)
+    ##human
     GOdata <- new("topGOdata", description=sprintf("topGO object for community %s", c),
                   ontology = "BP", allGenes = geneList,
-                  annotationFun = annFUN.org, mapping = "org.Sc.sgd.db", 
-                  ID = "ENSEMBL", nodeSize = 10)
+                  annotationFun = annFUN.org, mapping = mapping, 
+                  ID = ID, nodeSize = 10)
     GOdataObjects[[c]] <- GOdata
     
-#     #fishers exact test classic
+    #fishers exact test classic
     resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
     resultFishers[[c]] <- resultFisher
     
-#     #fishers exact test elimination
+    #fishers exact test elimination
     resultFisher.elim <- runTest(GOdata, algorithm = "elim", statistic = "fisher")
     resultFisher.elims[[c]] <- resultFisher.elim
     
@@ -87,7 +119,18 @@ for (c in 1:numCom){
     
     #term that is ancestor of most terms
     representativeTerms[c] <- find_representative_term(gos[[c]])
+    
+    print(sprintf("community %s complete", c))
 }
+
+##find representatiove terms
+
+for (c in 1:numCom){
+    representativeTerms[c] <- find_representative_term(gos[[c]])
+    print(sprintf("community %s complete", c))
+}
+
+representativeTerms
 
 dir.create("/home/david/Documents/ghsom/uetz_go_terms")
 setwd("/home/david/Documents/ghsom/uetz_go_terms")
@@ -96,11 +139,11 @@ for (c in 1:numCom){
     print(sprintf("saved terms %s", c))
 } 
 
-##semantic similarity
-library(GOSemSim)
-scGO <- godata('org.Sc.sgd.db',  ont="BP", keytype="ENSEMBL")
+##SEMATIC SIMILARITY
+#construct gosemsim object
+hsGO <- godata(mapping, ont="BP")
 
-semSimTable <- mgoSim(representativeTerms, representativeTerms, semData=scGO, measure="Wang", combine=NULL)
+semSimTable <- mgoSim(representativeTerms, representativeTerms, semData=hsGO, measure="Wang", combine=NULL)
 
 t <- matrix(numeric(), nrow=numCom, ncol=numCom)
 for (t1 in 1:numCom) {
@@ -112,10 +155,9 @@ for (t1 in 1:numCom) {
 }
 rownames(t) <- representativeTerms
 colnames(t) <- representativeTerms
+head(t)
 
 shortest.path
-
-t
 
 distances <- numeric(length = (numCom * (numCom - 1)) / 2)
 semSims <- numeric(length = (numCom * (numCom - 1)) / 2)

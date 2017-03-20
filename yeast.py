@@ -1,9 +1,11 @@
 
 # coding: utf-8
 
-# In[24]:
+# In[15]:
 
 import numpy as np
+
+os.chdir("/home/david/Documents/ghsom")
 
 filename = "HI-II-14.tsv"
 
@@ -36,7 +38,7 @@ from save_embedded_graph27 import main as embed_main
 embed_main('HI-II-14.txt', 'embedded_hi_ii_14.gml')
 
 
-# In[10]:
+# In[8]:
 
 from spearmint_ghsom import main_no_labels as ghsom_main
 import pickle
@@ -49,6 +51,7 @@ def save_obj(obj, name):
 def load_obj(name):
     with open(name + '.pkl', 'rb') as f:
         return pickle.load(f)
+
     
 os.chdir("/home/david/Documents/ghsom")
 
@@ -61,6 +64,11 @@ params = {'w': 0.0001,
           'e_sg': p,
          'e_en': 0.8}
 
+
+# In[1]:
+
+
+
 G, map = ghsom_main(params, 'embedded_hi_ii_14.gml')
 
 print 'number of communities detected: {}'.format(len(map))
@@ -69,7 +77,7 @@ save_obj((G, map), 'HI_II_communities_{}'.format(p))
 print 'done'
 
 
-# In[11]:
+# In[9]:
 
 import os
 
@@ -79,7 +87,7 @@ G, map = load_obj('HI_II_communities_{}'.format(p))
 print 'num communities: {}'.format(len(map))
 
 
-# In[12]:
+# In[10]:
 
 min_nodes = 10
 
@@ -90,7 +98,7 @@ for n, d in map.nodes(data=True):
         print 'removed node {}'.format(n)
 
 
-# In[13]:
+# In[11]:
 
 import os
 import networkx as nx

@@ -8,6 +8,49 @@ biocLite("hgu95av2.db")
 biocLite("Rgraphviz")
 biocLite("colMap")
 
+library(GO.db)
+
+library(org.Sc.sgd.db)
+
+org.Sc.sgd.db$GO
+
+columns(org.Sc.sgd.db)
+
+k <- keys(org.Sc.sgd.db, KEYTYPE="ORF")
+gos <- subset(select(org.Sc.sgd.db, keys=k, columns=c("GO", "DESCRIPTION")), !is.na(GO) & ONTOLOGY=="BP")
+
+find_representative_term <- function(terms){
+    
+    counts <- numeric(length(terms))
+    names(counts) <- terms
+
+    for (term in terms) {
+        
+        ancestors <- as.list(GOBPANCESTOR[term])
+        print (ancestors)
+        for (ancestor in ancestors) {
+#             print (ancestor)
+            counts[ancestor] <- counts[ancestor] + 1
+        }
+
+    }
+    return (counts)
+#     return (sort(names(counts), decreasing=TRUE)[1])
+}
+
+terms <- sample(gos, 1)
+
+terms
+
+find_representative_term(terms)
+
+l <- as.character(GOBPANCESTOR["GO:0031023"])
+select(GO.db, keys = l, columns = c("TERM", "DEFINITION"))
+
+for (term in as.list(GOBPANCESTOR["GO:0031023"])){
+    print (term)
+}
+
 library(topGO)
 library(ALL)
 data(ALL)
