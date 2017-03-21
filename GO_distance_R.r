@@ -25,7 +25,7 @@ allGenes <- unique(allGenes)
 length(allGenes)
 
 ##load all community gene lists
-# setwd("/home/david/Documents/ghsom/union_communities_09")
+# setwd("/home/david/Documents/ghsom/union_communities_08")
 setwd("/home/david/Documents/ghsom/hi_communities_08")
 
 g <- list()
@@ -47,24 +47,16 @@ find_representative_term <- function(terms){
     names(counts) <- terms
 
     for (term in terms) {
-        
         ancestors <- as.list(GOBPANCESTOR[term])
-        for (ancestor in ancestors) {
-            counts[ancestor] <- counts[ancestor] + 1
+        for (ancestor in ancestors[[term]]) {
+            if (ancestor %in% names(counts)) {
+                counts[ancestor] <- counts[ancestor] + 1
+            }
         }
-#         result <- tryCatch({
-#             ancestors <- get_term_property(go, "ancestors", term, as_names = FALSE)
-#             for (ancestor in ancestors) {
-#                 counts[ancestor] <- counts[ancestor] + 1
-#             }
-#         }, warning <- function(w) {
-#             print("warning")
-#         }, error <- function(e) {
-#             print("error")
-#         }, finally <- {})
 
     }
-    return (sort(names(counts), decreasing=TRUE)[1])
+#     return (sort(names(counts), decreasing=TRUE)[1])
+    return (sort(counts, decreasing=TRUE))
 }
 
 cutOff <- 0.05
@@ -118,15 +110,9 @@ for (c in 1:numCom){
     gos[[c]] <- subset(allRes, classicFisher < cutOff & elimFisher < cutOff)$GO.ID
     
     #term that is ancestor of most terms
-    representativeTerms[c] <- find_representative_term(gos[[c]])
+    representativeTerms[c] <- names(find_representative_term(gos[[c]])[1])
+#     representativeTerms[c] <- gos[[c]][1]
     
-    print(sprintf("community %s complete", c))
-}
-
-##find representatiove terms
-
-for (c in 1:numCom){
-    representativeTerms[c] <- find_representative_term(gos[[c]])
     print(sprintf("community %s complete", c))
 }
 
@@ -157,7 +143,7 @@ rownames(t) <- representativeTerms
 colnames(t) <- representativeTerms
 head(t)
 
-shortest.path
+head(shortest.path)
 
 distances <- numeric(length = (numCom * (numCom - 1)) / 2)
 semSims <- numeric(length = (numCom * (numCom - 1)) / 2)

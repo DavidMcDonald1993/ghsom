@@ -38,7 +38,7 @@ from save_embedded_graph27 import main as embed_main
 embed_main('HI-II-14.txt', 'embedded_hi_ii_14.gml')
 
 
-# In[8]:
+# In[2]:
 
 from spearmint_ghsom import main_no_labels as ghsom_main
 import pickle
@@ -65,29 +65,30 @@ params = {'w': 0.0001,
          'e_en': 0.8}
 
 
-# In[1]:
+# In[2]:
 
-
-
-G, map = ghsom_main(params, 'embedded_hi_ii_14.gml')
+# G, map = ghsom_main(params, 'embedded_hi_ii_14.gml')
+G, map = ghsom_main(params, 'embedded_yeast_union.gml')
 
 print 'number of communities detected: {}'.format(len(map))
-save_obj((G, map), 'HI_II_communities_{}'.format(p))
+# save_obj((G, map), 'HI_II_communities_{}'.format(p))
+save_obj((G, map), 'yeast_union_communities_{}'.format(p))
 
 print 'done'
 
 
-# In[9]:
+# In[5]:
 
 import os
 
 os.chdir("/home/david/Documents/ghsom")
 
-G, map = load_obj('HI_II_communities_{}'.format(p))
+# G, map = load_obj('HI_II_communities_{}'.format(p))
+G, map = load_obj('yeast_union_communities_{}'.format(p))
 print 'num communities: {}'.format(len(map))
 
 
-# In[10]:
+# In[6]:
 
 min_nodes = 10
 
@@ -98,7 +99,7 @@ for n, d in map.nodes(data=True):
         print 'removed node {}'.format(n)
 
 
-# In[11]:
+# In[7]:
 
 import os
 import networkx as nx
@@ -106,7 +107,7 @@ import numpy as np
 ##save to communities directory
 os.chdir("/home/david/Documents/ghsom")
 
-dir_name = "hi_communities_08"
+dir_name = "union_communities_08"
 
 if not os.path.isdir(dir_name):
     os.mkdir(dir_name)

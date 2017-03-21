@@ -3,6 +3,16 @@ library(GO.db)
 library(topGO)
 library(org.Sc.sgd.db)
 
+columns(GO.db)
+
+keys <- sample(keys(GO.db), 5)
+
+keys
+
+?sample
+
+select(GO.db, keys=keys, keytype="GOID", columns=c("TERM", "DEFINITION"))
+
 setwd('/home/david/Documents/ghsom')
 allGenes <- read.table("Y2H_union.txt")$V1
 allGenes <- unique(allGenes)
