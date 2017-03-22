@@ -23,10 +23,10 @@ with open("HI-II-14.txt", "w") as f:
         f.write("{} {}\n".format(line[0], line[2]))
 
 
-# In[27]:
+# In[1]:
 
 import networkx as nx
-G = nx.read_edgelist("HI-II-14.txt")
+G = nx.read_edgelist("Uetz_screen.txt")
 
 print len(G.nodes())
 
@@ -55,7 +55,7 @@ def load_obj(name):
     
 os.chdir("/home/david/Documents/ghsom")
 
-p = 0.8
+p = 0.2
 
 #ghsom parameters
 params = {'w': 0.0001,
@@ -65,30 +65,33 @@ params = {'w': 0.0001,
          'e_en': 0.8}
 
 
-# In[2]:
+# In[3]:
 
 # G, map = ghsom_main(params, 'embedded_hi_ii_14.gml')
-G, map = ghsom_main(params, 'embedded_yeast_union.gml')
+# G, map = ghsom_main(params, 'embedded_yeast_union.gml')
+G, map = ghsom_main(params, 'embedded_yeast_uetz.gml')
 
 print 'number of communities detected: {}'.format(len(map))
 # save_obj((G, map), 'HI_II_communities_{}'.format(p))
-save_obj((G, map), 'yeast_union_communities_{}'.format(p))
+# save_obj((G, map), 'yeast_union_communities_{}'.format(p))
+save_obj((G, map), 'yeast_uetz_communities_{}'.format(p))
 
 print 'done'
 
 
-# In[5]:
+# In[24]:
 
 import os
 
 os.chdir("/home/david/Documents/ghsom")
 
 # G, map = load_obj('HI_II_communities_{}'.format(p))
-G, map = load_obj('yeast_union_communities_{}'.format(p))
+# G, map = load_obj('yeast_union_communities_{}'.format(p))
+G, map = load_obj('yeast_uetz_communities_{}'.format(p))
 print 'num communities: {}'.format(len(map))
 
 
-# In[6]:
+# In[26]:
 
 min_nodes = 10
 
@@ -99,7 +102,7 @@ for n, d in map.nodes(data=True):
         print 'removed node {}'.format(n)
 
 
-# In[7]:
+# In[28]:
 
 import os
 import networkx as nx
@@ -107,7 +110,8 @@ import numpy as np
 ##save to communities directory
 os.chdir("/home/david/Documents/ghsom")
 
-dir_name = "union_communities_08"
+# dir_name = "union_communities_08"
+dir_name = "uetz_communities_04"
 
 if not os.path.isdir(dir_name):
     os.mkdir(dir_name)

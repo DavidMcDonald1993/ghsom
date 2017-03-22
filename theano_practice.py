@@ -82,6 +82,11 @@ density = np.genfromtxt('density.txt')
 print density
 
 
+# In[2]:
+
+get_ipython().run_cell_magic(u'R', u'', u'\nx <- c(1,2,3)\nx')
+
+
 # In[ ]:
 
 

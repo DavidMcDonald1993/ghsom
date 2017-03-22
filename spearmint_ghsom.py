@@ -45,9 +45,6 @@ def initialise_network(X, num_neurons, w):
         ##som for neuron
         network.node[i]['n'] = []
         
-        # signal frequency
-        network.node[i]['r'] = 0
-        
         ##add edges
         for j in range(max(0, i-2), i):
             
