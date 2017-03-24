@@ -38,7 +38,7 @@ from save_embedded_graph27 import main as embed_main
 embed_main('HI-II-14.txt', 'embedded_hi_ii_14.gml')
 
 
-# In[2]:
+# In[ ]:
 
 from spearmint_ghsom import main_no_labels as ghsom_main
 import pickle
@@ -55,6 +55,7 @@ def load_obj(name):
     
 os.chdir("/home/david/Documents/ghsom")
 
+init = 50
 p = 0.2
 
 #ghsom parameters
@@ -64,22 +65,19 @@ params = {'w': 0.0001,
           'e_sg': p,
          'e_en': 0.8}
 
-
-# In[3]:
-
 # G, map = ghsom_main(params, 'embedded_hi_ii_14.gml')
 # G, map = ghsom_main(params, 'embedded_yeast_union.gml')
-G, map = ghsom_main(params, 'embedded_yeast_uetz.gml')
+G, map = ghsom_main(params, 'embedded_yeast_uetz.gml', init=init, lam=10000)
 
 print 'number of communities detected: {}'.format(len(map))
 # save_obj((G, map), 'HI_II_communities_{}'.format(p))
 # save_obj((G, map), 'yeast_union_communities_{}'.format(p))
-save_obj((G, map), 'yeast_uetz_communities_{}'.format(p))
+save_obj((G, map), 'yeast_uetz_communities_{}_{}'.format(p, init))
 
 print 'done'
 
 
-# In[24]:
+# In[7]:
 
 import os
 
@@ -87,13 +85,13 @@ os.chdir("/home/david/Documents/ghsom")
 
 # G, map = load_obj('HI_II_communities_{}'.format(p))
 # G, map = load_obj('yeast_union_communities_{}'.format(p))
-G, map = load_obj('yeast_uetz_communities_{}'.format(p))
+G, map = load_obj('yeast_uetz_communities_{}_{}'.format(p, init))
 print 'num communities: {}'.format(len(map))
 
 
-# In[26]:
+# In[8]:
 
-min_nodes = 10
+min_nodes = 1
 
 ##remove neurons with no assigned nodes
 for n, d in map.nodes(data=True):
@@ -102,7 +100,12 @@ for n, d in map.nodes(data=True):
         print 'removed node {}'.format(n)
 
 
-# In[28]:
+# In[9]:
+
+len(map)
+
+
+# In[10]:
 
 import os
 import networkx as nx
@@ -111,7 +114,7 @@ import numpy as np
 os.chdir("/home/david/Documents/ghsom")
 
 # dir_name = "union_communities_08"
-dir_name = "uetz_communities_04"
+dir_name = "uetz_communities_{}_{}".format(p, init)
 
 if not os.path.isdir(dir_name):
     os.mkdir(dir_name)
@@ -131,9 +134,4 @@ for n, d in map.nodes(data=True):
             f.write('{}\n'.format(l))
     print 'written community_{}.txt'.format(c)
     c += 1
-
-
-# In[ ]:
-
-
 

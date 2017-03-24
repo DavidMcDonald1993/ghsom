@@ -1,0 +1,4 @@
+uetz 0.5 100000 epochs per cycle
+
+uetz 0.1 10000 1 min gene
+0.01? 0.05?

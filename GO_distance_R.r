@@ -1,6 +1,8 @@
 
+library(rJava)
 source("https://bioconductor.org/biocLite.R")
-biocLite("org.Hs.eg.db")
+# biocLite("org.Hs.eg.db")
+biocLite("RDAVIDWebService")
 
 #libraries
 library(GO.db)
@@ -8,6 +10,11 @@ library(topGO)
 library(org.Hs.eg.db)
 library(org.Sc.sgd.db)
 library(GOSemSim)
+
+file <- "Uetz_screen"
+
+p <- 0.2
+init <- 50
 
 db <- org.Sc.sgd.db
 mapping <- "org.Sc.sgd.db"
@@ -18,17 +25,12 @@ ID <- "ENSEMBL"
 
 #background gene list
 setwd('/home/david/Documents/ghsom')
-allGenes <- scan("Uetz_screen.txt", character())
-# allGenes <- scan("Y2H_union.txt", character())
-# allGenes <- scan("HI-II-14.txt", character())
+allGenes <- scan(sprintf("%s.txt", file), character())
 allGenes <- unique(allGenes) 
 length(allGenes)
 
-allGenes <- select(org.Sc.sgd.db, keys=keys(org.Sc.sgd.db), columns="ORF")$ORF
-length(allGenes)
-
 ##load all community gene lists
-setwd("/home/david/Documents/ghsom/uetz_communities_04")
+setwd(sprintf("/home/david/Documents/ghsom/uetz_communities_%s_%s", p, init))
 # setwd("/home/david/Documents/ghsom/union_communities_08")
 # setwd("/home/david/Documents/ghsom/hi_communities_08")
 
@@ -45,39 +47,13 @@ numCom
 #distances between neurons
 shortest.path <- read.csv("shortest_path.csv", sep=",", header=FALSE)
 
-#factor of interesting genes
-geneList <- factor(as.integer(allGenes %in% g[[3]]))
-names(geneList) <- allGenes
-
-#construct topGO object
-GOdata <- new("topGOdata", description=sprintf("topGO object for community 1"),
-              ontology = "BP", allGenes = geneList,
-              annotationFun = annFUN.org, mapping = mapping, 
-              ID = ID, nodeSize = 10)
-
-#fishers exact test classic
-resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
-
-gos <- score(resultFisher)[score(resultFisher) < 0.05]
-
-#tabulate results
-allRes <- GenTable(GOdata, classicFisher = resultFisher,
-              orderBy = "classicFisher", topNodes = 500)
-
-gos
-
-select(GO.db, keys=names(gos), columns=c("TERM", "DEFINITION"))
-
-generateTopGOData <- function(g){
-    
-}
-
-filename <- sprintf("Uetz-04.rda")
+filename <- sprintf("%s-%s.rda", file, p)
 
 if (file.exists(filename)){
     
     print(sprintf("loading: %s", filename))
     load(filename)
+    print("loaded")
     
 } else {
     
@@ -110,7 +86,6 @@ if (file.exists(filename)){
 
         #tabulate results
         allRes <- GenTable(GOdata, classicFisher = resultFisher,
-                      elimFisher = resultFisher.elim,
                       orderBy = "classicFisher", topNodes = 500)
         results[[c]] <- allRes
 
@@ -122,15 +97,19 @@ if (file.exists(filename)){
     
     print(sprintf("Saving data: %s", filename))
     save(geneLists, GOdataObjects, resultFishers, results, gos, file=filename)
+    print("saved")
 }
 
 ##SEMATIC SIMILARITY
 #construct gosemsim object
-semsimfile <- sprintf("Uetz-semsimfile.rda")
+semsimfile <- sprintf("%s-semsimfile.rda", file)
 if (file.exists(semsimfile)){
+    print(sprintf("loading: %s", semsimfile))
     load(semsimfile)
+    print("loaded")
 } else {
-    hsGO <- godata(mapping, ont="BP", keytype="ENSEMBL")
+    print(sprintf("creating %s", semsimfile))
+    hsGO <- godata(mapping, ont="BP", keytype=ID)
     save(hsGO, file=semsimfile)
     print(sprintf("saved semsimfile: %s", semsimfile))
 }
@@ -170,23 +149,33 @@ representativeTerms
 
 select(GO.db, keys=representativeTerms, columns=c("TERM", "DEFINITION"))
 
-shortest.path
+m <- mgeneSim(g[[1]], semData=hsGO, measure="Wang", combine="avg")
 
-representativeTerms[7]
+mean(m)
 
-representativeTerms[8]
+simsGO <- mgoSim(representativeTerms, representativeTerms, semData=hsGO, measure="Lin", combine=NULL)
 
-goSim(representativeTerms[7], representativeTerms[8], semData=hsGO, measure="Wang")
+head(simsGO)
 
-sims <- mgoSim(representativeTerms, representativeTerms, semData=hsGO, measure="Resnik", combine=NULL)
+simsGenes <- mclusterSim(g, semData=hsGO, measure="Lin", combine="BMA")
 
-sims <- mclusterSim(g, semData=hsGO, measure="Rel", combine="BMA")
-
-head(sims)
+head(simsGenes)
 
 head(shortest.path)
 
-simfile <- sprintf("HI-II-14-sims.rda")
+num_genes <- function(c){
+    return(length(c))
+}
+
+sapply(g, num_genes)
+
+cluster_similarity <- function(c){
+    return(mean(mgeneSim(c, semData=hsGO, measure="Wang",verbose=FALSE)))
+}
+
+sapply(g, cluster_similarity)
+
+simfile <- sprintf("%s-sims.rda", file)
 if (file.exists(simfile)){
     load(simfile)
 } else {
@@ -196,58 +185,7 @@ if (file.exists(simfile)){
 }
 
 
-weighted_similarity <- function(namedTerms1, namedTerms2) {
-    
-
-    s <- mgoSim(names(namedTerms1), 
-           names(namedTerms2), semData=hsGO, measure="Wang", combine=NULL)
-
-    t <- matrix(numeric(), 
-                nrow=length(namedTerms1), 
-                ncol=length(namedTerms2))
-    
-    for (t1 in 1:length(namedTerms1)){
-        w1 <- namedTerms1[t1]
-        term1 <- names(w1)
-        for (t2 in 1:length(namedTerms2)){
-            w2 <- namedTerms2[t2]
-            term2 <- names(w2)
-            t[[t1, t2]] <- s[term1, term2] * w1 * w2
-        }
-    }
-         
-    return(max(t))
-    
-}
-
-
-t <- matrix(numeric(), nrow=numCom, ncol=numCom)
-for (t1 in 1:numCom) {
-    namedTerms1 <- normalisedRepresentativeTerms[[t1]]
-    for (t2 in 1:numCom) {
-        namedTerms2 <- normalisedRepresentativeTerms[[t2]]
-        t[[t1, t2]] <- weighted_similarity(namedTerms1, namedTerms2)
-    }
-}
-# rownames(t) <- representativeTerms
-# colnames(t) <- representativeTerms
-head(t)
-
-semSimTable <- mgoSim(representativeTerms, representativeTerms, semData=hsGO, measure="Wang", combine=NULL)
-
-t <- matrix(numeric(), nrow=numCom, ncol=numCom)
-for (t1 in 1:numCom) {
-    term1 <- representativeTerms[t1]
-    for (t2 in 1:numCom) {
-        term2 <- representativeTerms[t2]
-        t[[t1, t2]] <- semSimTable[term1, term2]
-    }
-}
-rownames(t) <- representativeTerms
-colnames(t) <- representativeTerms
-head(t)
-
-head(t * 100)
+head(sims)
 
 head(shortest.path)
 
@@ -292,12 +230,9 @@ plot(distances, semSims, xlab="Distance on Map", ylab="Semantic Similarity")
 
 cor(distances, semSims)
 
-source("https://bioconductor.org/biocLite.R")
-biocLite("GOSim")
-
-sim
-
 library(GOSim)
+
+
 setOntology("BP")
 gomap <- get("gomap",env=GOSimEnv)
 allgenes = sample(names(gomap), 1000) # suppose these are all genes
@@ -315,8 +250,13 @@ if(require(cluster)){
 if(require(topGO))
     GOenrichment(genesOfInterest[cl == 1], allgenes, cutoff=0.05) # print out what cluster 1 is about
 
-sim = getGeneSim(g[[1]], g[[2]], verbose=FALSE)
+library(clusterProfiler)
+david <- enrichDAVID(gene = g[[1]],
+                     idType = "ENSEMBL_GENE_ID",
+                     listType = "Gene",
+                     annotation = "GOTERM_CC_DIRECT",
+                     david.user = "dxm237@cs.bham.ac.uk")
 
-GOenrichment(g[[1]], allGenes, cutoff=0.05) # print out what cluster 1 is about
+david 
 
 

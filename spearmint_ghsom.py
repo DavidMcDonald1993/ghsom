@@ -1,9 +1,12 @@
 
 # coding: utf-8
 
-# In[ ]:
+# In[11]:
 
 from __future__ import division
+
+from sys import stdout
+
 import numpy as np
 import sys
 import networkx as nx
@@ -26,6 +29,9 @@ def initialise_network(X, num_neurons, w):
     #dimension of data in X
     d = len(X[0])
     
+    #regular lattice
+    lattice_size = np.floor(np.sqrt(num_neurons))
+    
     for i in range(num_neurons):
         
         ##position
@@ -45,10 +51,24 @@ def initialise_network(X, num_neurons, w):
         ##som for neuron
         network.node[i]['n'] = []
         
-        ##add edges
-        for j in range(max(0, i-2), i):
+#         ##add edges
+#         for j in range(max(0, i-2), i):
             
-            network.add_edge(i, j)
+#             network.add_edge(i, j)
+        
+        #connections
+        if i % lattice_size > 0:
+            #horizontal connection
+            network.add_edge(i, i - 1)
+        
+        if i >= lattice_size:
+            #vertical connection
+            network.add_edge(i, i - lattice_size)
+            
+            if i % lattice_size < lattice_size - 1:
+                #diagonal connection
+                network.add_edge(i, i - lattice_size + 1)
+                
     
     #return network
     return network
@@ -84,14 +104,14 @@ def train_network(X, network, num_epochs, eta_0, sigma_0, N):
             update_weights(x, network, win_neuron, eta, sigma)
             
         # drop neighbourhood
-#         sigma = sigma_0 * np.exp(-2 * sigma_0 * e / num_epochs);
+        sigma = sigma_0 * np.exp(-2 * sigma_0 * e / num_epochs);
 
 # winning neuron
 def winning_neuron(x, network):
 
     # minimum distance so far
-    min_dist = float("inf")
-    win_neuron = []
+    min_dist = np.inf
+    winning_neuron = []
     
     # iterate through network
     for i in network.nodes():
@@ -105,10 +125,10 @@ def winning_neuron(x, network):
         # if we have a new closest neuron
         if distance < min_dist:
             min_dist = distance
-            win_neuron = i
+            winning_neuron = i
     
     #return
-    return win_neuron
+    return winning_neuron
 
 # function to update weights
 def update_weights(x, network, win_neuron, eta, sigma):
@@ -152,7 +172,7 @@ def assign_nodes(G, X, network, layer):
         x = X[n]
     
         #intialise distance to be infinity
-        min_distance = float("inf")
+        min_distance = np.inf
         
         #closest reference vector to this ndoe
         closest_ref = []
@@ -186,8 +206,6 @@ def update_errors(network):
     #mean network error
     mqe = 0;
     
-    nodes_to_remove = []
-    
     #iterate over all neurons and average distance
     for i in network.nodes():
             
@@ -205,9 +223,7 @@ def update_errors(network):
         mqe += e
         
         #save error to network
-        network.node[i]['e'] = e
-            
-    network.remove_nodes_from(nodes_to_remove)        
+        network.node[i]['e'] = e        
     
     #mean
     mqe /= nx.number_of_nodes(network)
@@ -367,7 +383,7 @@ def expand_network(network, error_unit):
 def furthest_neuron(network, error_unit, ls):
     
     vi = network.node[error_unit]['v']
-    max_dist = -float("inf")
+    max_dist = -np.inf
     
     #neighbour id
     furthest_node = []
@@ -390,7 +406,7 @@ def furthest_neuron(network, error_unit, ls):
     return furthest_node
 
 ##GHSOM algorithm
-def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, layer):
+def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
     
     #embedding
     X = get_embedding(G)
@@ -399,10 +415,16 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, layer):
     num_nodes = nx.number_of_nodes(G)
     
     ##number of training patterns to visit
-    N = min(num_nodes, 100)
+#     N = min(num_nodes, 100)
+    N = num_nodes
+    
+    if layer == 0:
+        ini = 1
+    else:
+        ini = init
     
     #create som for this neuron
-    network = initialise_network(X, 1, w)
+    network = initialise_network(X, ini, w)
     
     ##inital training phase
     
@@ -433,6 +455,11 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, layer):
 
         #calculate mean network error
         MQE = update_errors(network)
+        
+        ##print to console for progress update
+        if layer == 1:
+            stdout.write("\r" + 
+                         "number of neurons in map: {}, error: {}, target: {}".format(len(network), MQE, e_sg * e_0))
     
     #recalculate error after neuron expansion
     MQE = 0
@@ -446,16 +473,16 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, layer):
         e = network.node[network.nodes()[i]]['e']
         
         #check error
-        if (e > e_en * e_0 and layer < MAX_DEPTH) or e_0 == float("inf"):
+        if (e > e_en * e_0 and layer < MAX_DEPTH) or e_0 == np.inf:
 
-            if e_0 == float("inf"):
+            if e_0 == np.inf:
                 e_0 = e
         
             #subgraph
             H = G.subgraph(ls)
             
             #recursively run algorithm to create new network for subgraph of this neurons nodes
-            n, e = ghsom(H, lam, w, eta, sigma, e_0, e_sg, e_en, layer + 1)
+            n, e = ghsom(H, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer + 1)
             
             #repack
             network.node[network.nodes()[i]]['e'] = e
@@ -573,7 +600,7 @@ def modularity(G, H):
     return Q
 
 ###evaluate fitness
-def fitness(w, eta, sigma, e_sg, e_en, gml_filename, labels, lam):
+def fitness(w, eta, sigma, e_sg, e_en, gml_filename, labels, init, lam):
     
     G = nx.read_gml(gml_filename)
     labels = labels.split(',')
@@ -582,7 +609,7 @@ def fitness(w, eta, sigma, e_sg, e_en, gml_filename, labels, lam):
     layer = 0
     
     #run ghsom algorithm
-    network, MQE = ghsom(G, lam, w, eta, sigma, float("inf"), e_sg, e_en, layer)
+    network, MQE = ghsom(G, lam, w, eta, sigma, np.inf, e_sg, e_en, init, layer)
 
     #label graph
     neurons = np.zeros(MAX_DEPTH + 1, dtype=np.int)
@@ -598,12 +625,12 @@ def fitness(w, eta, sigma, e_sg, e_en, gml_filename, labels, lam):
     
     return mi_score, num_communities_detected
 
-def main(params, gml_filename, labels, lam=10000):
+def main(params, gml_filename, labels, init=1, lam=10000):
 
     return fitness(params['w'], params['eta'], params['sigma'],
-                   params['e_sg'], params['e_en'], gml_filename, labels, lam)
+                   params['e_sg'], params['e_en'], gml_filename, labels, init, lam)
 
-def main_no_labels(params, gml_filename, lam=10000):
+def main_no_labels(params, gml_filename, init=1, lam=10000):
     
     G = nx.read_gml(gml_filename)
     
@@ -612,7 +639,7 @@ def main_no_labels(params, gml_filename, lam=10000):
 
     #run ghsom algorithm
     network, MQE = ghsom(G, lam, params['w'], params['eta'],
-                         params['sigma'], float("inf"), params['e_sg'], params['e_en'], layer)
+                         params['sigma'], np.inf, params['e_sg'], params['e_en'], init, layer)
         
     n, d = network.nodes(data=True)[0]
     

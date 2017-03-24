@@ -8,6 +8,10 @@ biocLite("hgu95av2.db")
 biocLite("Rgraphviz")
 biocLite("colMap")
 
+a <- c(1,2,3,4,5,6,7,8,9)
+b  <- c(3,2,1,2,2,3,4,6,7,8,9,0,1)
+length(intersect(a, b)) / length(union(a, b))
+
 library(clusterProfiler)
 x <- c("GPX3",  "GLRX",   "LBP",   "CRYAB", "DEFB1", "HCLS1",   "SOD2",   "HSPA2",
        "ORM1",  "IGFBP1", "PTHLH", "GPC3",  "IGFBP3","TOB1",    "MITF",   "NDRG1",
@@ -37,6 +41,12 @@ while (file.exists(filename)) {
     filename <- sprintf("community_%s.txt", numCom)
 }
 numCom
+
+inter <- function(x, y){
+    return(length(intersect(x, y)) / length(union(x, y)))
+}
+
+inter(g[[1]], g[[3]])
 
 find_representative_term <- function(terms){
     

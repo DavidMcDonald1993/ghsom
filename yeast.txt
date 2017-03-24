@@ -1,113 +1,115 @@
 
-import matplotlib.pyplot as plt
+import numpy as np
+
+os.chdir("/home/david/Documents/ghsom")
+
+filename = "HI-II-14.tsv"
+
+lines = []
+
+for line in open(filename):
+    lines.append(line.rstrip().split("\t"))
+
+with open("HI-II-14.txt", "w") as f:
+    first = True
+    for line in lines:
+        if first:
+            first=False
+            continue
+        f.write("{} {}\n".format(line[0], line[2]))
+
 import networkx as nx
+G = nx.read_edgelist("Uetz_screen.txt")
 
-# G = nx.Graph()
-
-# for line in open('Uetz_screen.txt','r'):
-#     G.add_edge()
-#     print line.rstrip().split('\t')
-
-G = nx.read_edgelist('Uetz_screen.txt')
 print len(G.nodes())
-print len(G.edges())
-print G.nodes()[55]
 
 from save_embedded_graph27 import main as embed_main
 
-embed_main('Uetz_screen.txt', 'embedded_yeast.gml')
+embed_main('HI-II-14.txt', 'embedded_hi_ii_14.gml')
 
 from spearmint_ghsom import main_no_labels as ghsom_main
+import pickle
+import os
+
+def save_obj(obj, name):
+    with open(name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+def load_obj(name):
+    with open(name + '.pkl', 'rb') as f:
+        return pickle.load(f)
+
+    
+os.chdir("/home/david/Documents/ghsom")
+
+init = 50
+p = 0.2
 
 #ghsom parameters
 params = {'w': 0.0001,
          'eta': 0.0001,
          'sigma': 1,
-          'e_sg': 0.8,
+          'e_sg': p,
          'e_en': 0.8}
 
-G, map = ghsom_main(params, 'embedded_yeast.gml')
+# G, map = ghsom_main(params, 'embedded_hi_ii_14.gml')
+# G, map = ghsom_main(params, 'embedded_yeast_union.gml')
+G, map = ghsom_main(params, 'embedded_yeast_uetz.gml', init=init, lam=10)
 
-import matplotlib.pyplot as plt
+print 'number of communities detected: {}'.format(len(map))
+# save_obj((G, map), 'HI_II_communities_{}'.format(p))
+# save_obj((G, map), 'yeast_union_communities_{}'.format(p))
+save_obj((G, map), 'yeast_uetz_communities_{}_{}'.format(p, init))
+
+print 'done'
+
+import os
+
+os.chdir("/home/david/Documents/ghsom")
+
+# G, map = load_obj('HI_II_communities_{}'.format(p))
+# G, map = load_obj('yeast_union_communities_{}'.format(p))
+G, map = load_obj('yeast_uetz_communities_{}'.format(p))
+print 'num communities: {}'.format(len(map))
+
+min_nodes = 1
+
+##remove neurons with no assigned nodes
+for n, d in map.nodes(data=True):
+    if len(d['ls']) < min_nodes:
+        map.remove_node(n)
+        print 'removed node {}'.format(n)
+
+len(map)
+
+import os
 import networkx as nx
 import numpy as np
-from spearmint_ghsom import modularity
+##save to communities directory
+os.chdir("/home/david/Documents/ghsom")
 
-print 'num communities detected: {}'.format(len(map))
+# dir_name = "union_communities_08"
+dir_name = "uetz_communities_01"
 
-n_1, d_1 = map.nodes(data=True)[0]
-n_2, d_2 = map.nodes(data=True)[1]
+if not os.path.isdir(dir_name):
+    os.mkdir(dir_name)
+    print 'made directory {}'.format(dir_name)
+    
+os.chdir(dir_name)
 
-H = G.subgraph([n for n in G.nodes() if n in d_1['ls']])
-# nx.draw_networkx(H)
-# plt.show()
+shortest_path = nx.floyd_warshall_numpy(map).astype(np.int)
+np.savetxt("shortest_path.csv", shortest_path, fmt='%i', delimiter=",")
+print 'written shortest path matrix'
 
-I = G.subgraph([n for n in G.nodes() if n in d_2['ls']])
-# nx.draw_networkx(I)
-# plt.show()
+c = 0
+for n, d in map.nodes(data=True):
+    ls = d['ls']
+    with open('community_{}.txt'.format(c),'w') as f:
+        for l in ls:
+            f.write('{}\n'.format(l))
+    print 'written community_{}.txt'.format(c)
+    c += 1
 
-print len(H)
-print modularity(G, H)
-print len(I)
-print modularity(H, I)
-
-# J = nx.compose(H, I)
-# nx.draw_networkx(J, pos=nx.spring_layout(J))
-# plt.show()
-
-# labels = nx.get_node_attributes(H, 'label')
-# for k, label in labels.items():
-#     print label
-
-import pymysql.cursors
-# Connect to the database
-connection = pymysql.connect(host='mysql-amigo.ebi.ac.uk',
-            user='go_select',
-            password='amigo',
-            db='go_latest',
-            port=4085,
-            cursorclass=pymysql.cursors.DictCursor)
-try:
-            with connection.cursor() as cursor:
-            # Create a new record
-                sql = " SELECT * FROM term WHERE is_obsolete=1;"
-                cursor.execute(sql)
-                results = cursor.fetchall()
-            # connection is not autocommit by default. So you must commit to save
-            # your changes.
-            connection.commit()
-            print 'completed query'
-finally:
-    connection.close()
-
-for result in results:
-    print result['acc']
-
-import matplotlib.pyplot as plt
-import networkx as nx
-import numpy as np
-
-G = nx.read_edgelist('Uetz_screen.txt')
-
-sgs = nx.connected_component_subgraphs(G)
-
-H = max(nx.connected_component_subgraphs(G), key=len)
-
-nx.draw_networkx(H)
-plt.show()
-
-n1 = G.nodes()[500]
-neighbours = G.neighbors(n1)
-
-H = G.subgraph([n1] + neighbours)
-
-pos = nx.spring_layout(H)
-
-nx.draw_networkx_nodes(H,pos)
-nx.draw_networkx_edges(H,pos)
-nx.draw_networkx_labels(H,pos)
-plt.show()
-
-print H.nodes()
+shortest_path
 
 
