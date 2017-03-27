@@ -13,8 +13,8 @@ library(GOSemSim)
 
 file <- "Uetz_screen"
 
-p <- 0.2
-init <- 50
+p <- 0.1
+init <- 30
 
 db <- org.Sc.sgd.db
 mapping <- "org.Sc.sgd.db"
@@ -56,6 +56,8 @@ if (file.exists(filename)){
     print("loaded")
     
 } else {
+    
+    print("creating topGO objects")
     
     cutOff <- 0.05
 
@@ -143,6 +145,8 @@ most_representative_term_ancestor <- function(namedTerms){
     return (sort(counts / sum(counts), decreasing=TRUE))
 }
 
+sapply(gos, function(g){length(g)})
+
 representativeTerms <- sapply(gos, most_representative_term_ic)
 
 representativeTerms
@@ -157,27 +161,17 @@ simsGO <- mgoSim(representativeTerms, representativeTerms, semData=hsGO, measure
 
 head(simsGO)
 
-simsGenes <- mclusterSim(g, semData=hsGO, measure="Lin", combine="BMA")
-
-head(simsGenes)
-
-head(shortest.path)
-
-num_genes <- function(c){
-    return(length(c))
-}
-
-sapply(g, num_genes)
-
 cluster_similarity <- function(c){
-    return(mean(mgeneSim(c, semData=hsGO, measure="Wang",verbose=FALSE)))
+    return(mean(mgeneSim(c, semData=hsGO, measure="Wang", verbose=FALSE)))
 }
 
 sapply(g, cluster_similarity)
 
 simfile <- sprintf("%s-sims.rda", file)
 if (file.exists(simfile)){
+    print(sprintf("loading: %s", simfile))
     load(simfile)
+    print("loaded")
 } else {
     sims <- mclusterSim(g, semData=hsGO, measure="Wang", combine="BMA")
     save(sims, file=simfile)
@@ -196,7 +190,7 @@ completed <- 0
 
 for (c1 in 1:numCom) {
     
-    t1 <- representativeTerms[c1]
+#     t1 <- representativeTerms[c1]
 #     gs1 <- g[[c1]]
 #     if (length(gos[[c1]]) == 0) next
     
@@ -204,7 +198,7 @@ for (c1 in 1:numCom) {
         
         if (c1 == c2) next
             
-            t2 <- representativeTerms[c2]
+#             t2 <- representativeTerms[c2]
             
 #         if (length(gos[[c2]]) == 0) next
             
@@ -216,7 +210,8 @@ for (c1 in 1:numCom) {
 #         semSims[completed] <- clusterSim(gs1, gs2, semData=scGO, measure="Wang", combine="BMA")
 #         semSims[completed] <- mgoSim(gos[[c1]], gos[[c2]], semData=scGO, measure="Wang", combine="BMA")
 #         semSims[completed] <- semSimTable[t1, t2]
-        semSims[completed] <- t[c1, c2]
+#         semSims[completed] <- t[c1, c2]
+        semSims[completed] <- sims[c1, c2]
             
         distances[completed] <- shortest.path[c1, c2]
         

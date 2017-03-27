@@ -55,19 +55,19 @@ def load_obj(name):
     
 os.chdir("/home/david/Documents/ghsom")
 
-init = 50
-p = 0.2
+init = 60
+p = 1.0
 
 #ghsom parameters
 params = {'w': 0.0001,
-         'eta': 0.0001,
+         'eta': 0.001,
          'sigma': 1,
           'e_sg': p,
          'e_en': 0.8}
 
 # G, map = ghsom_main(params, 'embedded_hi_ii_14.gml')
 # G, map = ghsom_main(params, 'embedded_yeast_union.gml')
-G, map = ghsom_main(params, 'embedded_yeast_uetz.gml', init=init, lam=10000)
+G, map = ghsom_main(params, 'embedded_yeast_uetz.gml', init=init, lam=50000)
 
 print 'number of communities detected: {}'.format(len(map))
 # save_obj((G, map), 'HI_II_communities_{}'.format(p))
@@ -77,7 +77,7 @@ save_obj((G, map), 'yeast_uetz_communities_{}_{}'.format(p, init))
 print 'done'
 
 
-# In[7]:
+# In[27]:
 
 import os
 
@@ -89,9 +89,9 @@ G, map = load_obj('yeast_uetz_communities_{}_{}'.format(p, init))
 print 'num communities: {}'.format(len(map))
 
 
-# In[8]:
+# In[28]:
 
-min_nodes = 1
+min_nodes = 5
 
 ##remove neurons with no assigned nodes
 for n, d in map.nodes(data=True):
@@ -100,12 +100,12 @@ for n, d in map.nodes(data=True):
         print 'removed node {}'.format(n)
 
 
-# In[9]:
+# In[29]:
 
 len(map)
 
 
-# In[10]:
+# In[30]:
 
 import os
 import networkx as nx
@@ -134,4 +134,9 @@ for n, d in map.nodes(data=True):
             f.write('{}\n'.format(l))
     print 'written community_{}.txt'.format(c)
     c += 1
+
+
+# In[ ]:
+
+
 

@@ -529,7 +529,7 @@ write_layout_file(G, 'community1', 'layout_football')
 
 # In[10]:
 
-get_ipython().magic('matplotlib notebook')
+get_ipython().magic(u'matplotlib notebook')
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
