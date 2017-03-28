@@ -13,7 +13,7 @@ library(GOSemSim)
 
 file <- "Uetz_screen"
 
-p <- 0.1
+p <- 0.2
 init <- 30
 
 db <- org.Sc.sgd.db
@@ -47,7 +47,9 @@ numCom
 #distances between neurons
 shortest.path <- read.csv("shortest_path.csv", sep=",", header=FALSE)
 
-filename <- sprintf("%s-%s.rda", file, p)
+cutOff <- 0.01
+
+filename <- sprintf("%s-%s-%s.rda", file, p, cutOff)
 
 if (file.exists(filename)){
     
@@ -58,8 +60,6 @@ if (file.exists(filename)){
 } else {
     
     print("creating topGO objects")
-    
-    cutOff <- 0.05
 
     geneLists <- vector("list", numCom) 
     GOdataObjects <- vector("list", numCom) 
@@ -130,11 +130,11 @@ most_representative_term_ic <- function(namedTerms){
 most_representative_term_ancestor <- function(namedTerms){
     
     counts <- numeric(length(namedTerms))
-    names(counts) <- names(terms)
+    names(counts) <- names(namedTerms)
 
-    for (term in terms) {
-        ancestors <- as.list(GOBPANCESTOR[names(term)])
-        for (ancestor in ancestors[[names(term)]]) {
+    for (term in names(namedTerms)) {
+        ancestors <- as.list(GOBPANCESTOR[term])
+        for (ancestor in ancestors[[term]]) {
             if (ancestor %in% names(counts)) {
                 counts[ancestor] <- counts[ancestor] + 1
             }
@@ -142,30 +142,53 @@ most_representative_term_ancestor <- function(namedTerms){
 
     }
 #     return (sort(names(counts), decreasing=TRUE)[1])
-    return (sort(counts / sum(counts), decreasing=TRUE))
+    return (names(sort(counts / sum(counts), decreasing=TRUE)[1]))
 }
 
 sapply(gos, function(g){length(g)})
 
-representativeTerms <- sapply(gos, most_representative_term_ic)
+representativeTermsAncestor <- sapply(Filter(length, gos), most_representative_term_ancestor)
 
-representativeTerms
+representativeTermsAncestor <-representativeTermsAncestor[!is.na(representativeTermsAncestor)] 
 
-select(GO.db, keys=representativeTerms, columns=c("TERM", "DEFINITION"))
+representativeTermsAncestor
 
-m <- mgeneSim(g[[1]], semData=hsGO, measure="Wang", combine="avg")
+representativeTermsIC <- sapply(Filter(length, gos), most_representative_term_ic)
 
-mean(m)
+representativeTermsIC
 
-simsGO <- mgoSim(representativeTerms, representativeTerms, semData=hsGO, measure="Lin", combine=NULL)
+select(GO.db, keys=representativeTermsAncestor, columns=c("TERM", "DEFINITION"))
 
-head(simsGO)
+simsGOAncestor <- mgoSim(representativeTermsAncestor, representativeTermsAncestor, semData=hsGO, measure="Resnik", combine=NULL)
+
+head(simsGOAncestor)
+
+simsGOIC <- mgoSim(representativeTermsIC, representativeTermsIC, semData=hsGO, measure="Resnik", combine=NULL)
+
+head(simsGOIC)
+
+head(shortest.path)
 
 cluster_similarity <- function(c){
     return(mean(mgeneSim(c, semData=hsGO, measure="Wang", verbose=FALSE)))
 }
 
 sapply(g, cluster_similarity)
+
+goTerms <- sapply(gos, function(g)names(g))
+
+simsGO <- mgoSim(goTerms[[1]], goTerms[[4]], semData=hsGO, measure="Wang", combine="BMA")
+
+simsGO
+
+g[[1]]
+
+g[[2]]
+
+mgoSim(names(gos[[1]]), names(gos[[2]]), semData=hsGO, measure="Wang", combine="BMA")
+
+sapply(gos,
+       FUN=function(g1, g2){mgoSim(names(g1), names(g2), semData=hsGO, measure="Wang", combine="BMA")}, MARGIN=3)
 
 simfile <- sprintf("%s-sims.rda", file)
 if (file.exists(simfile)){
@@ -180,6 +203,16 @@ if (file.exists(simfile)){
 
 
 head(sims)
+
+namedGOs <- sapply(gos, function(g)names(g))
+
+namedGOs <- Filter(length, namedGOs)
+
+namedGOs
+
+simsGO <- mgoSim(namedGOs[[1]], namedGOs[[17]], semData=hsGO, measure="Resnik", combine="BMA")
+
+simsGO
 
 head(shortest.path)
 
@@ -224,34 +257,3 @@ for (c1 in 1:numCom) {
 plot(distances, semSims, xlab="Distance on Map", ylab="Semantic Similarity")
 
 cor(distances, semSims)
-
-library(GOSim)
-
-
-setOntology("BP")
-gomap <- get("gomap",env=GOSimEnv)
-allgenes = sample(names(gomap), 1000) # suppose these are all genes
-genesOfInterest = sample(allgenes, 20) # suppose these are all genes of interest
-sim = getGeneSim(genesOfInterest,verbose=FALSE) # and these are their similarities
-hc = hclust(as.dist(1-sim), method="ward") # use them to perform a clustering
-plot(hc) # plot the cluster tree
-cl = cutree(hc, k=3) # take 3 clusters
-if(require(cluster)){
-    ev = evaluateClustering(cl, sim) # evaluate the clustering
-    print(ev$clusterstats) # print out some statistics
-    plot(ev$clustersil,main="") # plot the cluster silhouettes
-}
-# investigate cluster 1 further
-if(require(topGO))
-    GOenrichment(genesOfInterest[cl == 1], allgenes, cutoff=0.05) # print out what cluster 1 is about
-
-library(clusterProfiler)
-david <- enrichDAVID(gene = g[[1]],
-                     idType = "ENSEMBL_GENE_ID",
-                     listType = "Gene",
-                     annotation = "GOTERM_CC_DIRECT",
-                     david.user = "dxm237@cs.bham.ac.uk")
-
-david 
-
-

@@ -105,6 +105,8 @@ def train_network(X, network, num_epochs, eta_0, sigma_0, N):
             
         # drop neighbourhood
         sigma = sigma_0 * np.exp(-2 * sigma_0 * e / num_epochs);
+        
+        stdout.write("\rTraining epoch: {}/{}".format(e, num_epochs))
 
 # winning neuron
 def winning_neuron(x, network):
@@ -457,9 +459,9 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
         MQE = update_errors(network)
         
         ##print to console for progress update
-        if layer == 1:
-            stdout.write("\r" + 
-                         "number of neurons in map: {}, error: {}, target: {}".format(len(network), MQE, e_sg * e_0))
+#         if layer == 1:
+#             stdout.write("\r" + 
+#                          "number of neurons in map: {}, error: {}, target: {}".format(len(network), MQE, e_sg * e_0))
     
     #recalculate error after neuron expansion
     MQE = 0
