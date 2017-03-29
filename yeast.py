@@ -38,7 +38,7 @@ from save_embedded_graph27 import main as embed_main
 embed_main('HI-II-14.txt', 'embedded_hi_ii_14.gml')
 
 
-# In[ ]:
+# In[5]:
 
 from spearmint_ghsom import main_no_labels as ghsom_main
 import pickle
@@ -56,7 +56,7 @@ def load_obj(name):
 os.chdir("/home/david/Documents/ghsom")
 
 init = 1
-p = 0.1
+p = 0.3
 
 #ghsom parameters
 params = {'w': 0.0001,
@@ -77,7 +77,7 @@ save_obj((G, map), 'yeast_uetz_communities_{}_{}'.format(p, init))
 print 'done'
 
 
-# In[7]:
+# In[6]:
 
 import os
 
@@ -86,10 +86,10 @@ os.chdir("/home/david/Documents/ghsom")
 # G, map = load_obj('HI_II_communities_{}'.format(p))
 # G, map = load_obj('yeast_union_communities_{}'.format(p))
 G, map = load_obj('yeast_uetz_communities_{}_{}'.format(p, init))
-print 'num communities: {}'.format(len(map))
+print 'number of communities detected: {}'.format(len(map))
 
 
-# In[11]:
+# In[7]:
 
 for n, d in map.nodes(data=True):
     print len(d['ls'])
@@ -106,12 +106,7 @@ for n, d in map.nodes(data=True):
         print 'removed node {}'.format(n)
 
 
-# In[13]:
-
-len(map)
-
-
-# In[14]:
+# In[9]:
 
 import os
 import networkx as nx
