@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[11]:
+# In[62]:
 
 from __future__ import division
 
@@ -75,7 +75,7 @@ def initialise_network(X, num_neurons, w):
 
 
 # function to train SOM on given graph
-def train_network(X, network, num_epochs, eta_0, sigma_0, N):
+def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target):
     
     #initial learning rate
     eta = eta_0
@@ -106,7 +106,8 @@ def train_network(X, network, num_epochs, eta_0, sigma_0, N):
         # drop neighbourhood
         sigma = sigma_0 * np.exp(-2 * sigma_0 * e / num_epochs);
         
-        stdout.write("\rTraining epoch: {}/{}".format(e, num_epochs))
+        stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, MQE: {}, target: {}".format(layer,
+                        e, num_epochs, len(network), MQE, target) + " " * 10)
 
 # winning neuron
 def winning_neuron(x, network):
@@ -208,6 +209,9 @@ def update_errors(network):
     #mean network error
     mqe = 0;
     
+    #neurons with assigned nodes
+    num_neurons = 0
+    
     #iterate over all neurons and average distance
     for i in network.nodes():
             
@@ -216,7 +220,11 @@ def update_errors(network):
         ls = network.node[i]['ls']
         
         if len(ls) == 0:
+            delete_node(network, i)
+            print 'deleted node {}'.format(i)
             continue
+            
+        num_neurons += 1
 
         #divide by len(ls) for mean
         e /= len(ls)
@@ -228,10 +236,57 @@ def update_errors(network):
         network.node[i]['e'] = e        
     
     #mean
-    mqe /= nx.number_of_nodes(network)
+    mqe /= num_neurons
     
     return mqe
 
+def connect_closest_neurons(network, s1, s2):
+    
+    min_dist = np.inf
+    
+    c1 = []
+    c2 = []
+    
+    for i in s1:
+        
+        v1 = network.node[i]['v']
+        
+        for j in s2:
+            
+            v2 = network.node[j]['v']
+            
+            d = np.linalg.norm(v1 - v2)
+            
+            if d < min_dist:
+                
+                min_dist = d
+                c1 = i
+                c2 = j
+            
+    ##connect
+    network.add_edge(c1, c2)
+
+def delete_node(network, n):
+    
+    neighbours = network.neighbors(n)
+    
+    network.remove_node(n)
+    
+    components = [c for c in nx.connected_components(network)]
+    
+    for i in range(len(components)):
+        
+        conn_neigh_1 = components[i].intersection(neighbours)
+        
+        for j in range(i + 1, len(components)):
+            
+            conn_neigh_2 = components[j].intersection(neighbours)
+            
+            ##make connection between closest neurons in input space
+            connect_closest_neurons(network, conn_neigh_1, conn_neigh_2)
+            
+    
+            
 ##function to identify neuron with greatest error
 def identify_error_unit(network):
     
@@ -255,6 +310,66 @@ def identify_error_unit(network):
     #return id of unit with maximum error
     return error_node
 
+def get_vector(node):
+    
+    d = 0
+    
+    while 'embedding'+str(d) in node:
+        d += 1
+    
+    v = np.zeros(d)
+    
+    for i in range(d):
+        v[i] = node['embedding{}'.format(i)]
+        
+    return v
+
+def expand_network_2(G, network, error_unit):
+    
+    #id of new node
+    id = max(network) + 1
+    
+    network.add_node(id)
+    
+    #v goes to random vector in range of error unit
+    ls = network.node[error_unit]['ls']
+    r = np.random.randint(len(ls))
+    node = G.node[ls[r]]
+    v = get_vector(node)
+    network.node[id]['v'] = v
+    
+    ##list of closest nodes
+    ls = []
+    network.node[id]['ls'] = ls
+
+    ##error of neuron
+    e = 0
+    network.node[id]['e'] = e
+
+    ##som for neuron
+    n = []
+    network.node[id]['n'] = n
+    
+    #connections to other neurons
+        
+    #identify neighbour pointing furthest away
+    error_unit_neighbours = network.neighbors(error_unit)
+    
+    if len(error_unit_neighbours) == 0:
+        
+        ##add edge
+        network.add_edge(error_unit, id)
+        
+        
+    else:
+        
+        ##find closest neighbour
+        n = closest_neuron(network, error_unit, error_unit_neighbours)
+        
+        #connect to error unit and closest neighbour
+        network.add_edge(n, id)
+        network.add_edge(error_unit, id)
+        
 ##function to expand som using given error unit
 def expand_network(network, error_unit):
     
@@ -262,7 +377,7 @@ def expand_network(network, error_unit):
     error_unit_neighbours = network.neighbors(error_unit)
     
     #id of new node
-    id = nx.number_of_nodes(network)
+    id = max(network) + 1
     
     #v of error unit
     ve = network.node[error_unit]['v']
@@ -323,7 +438,7 @@ def expand_network(network, error_unit):
         n = []
         network.node[id]['n'] = n
         
-        ##add edge
+        ##add edges
         network.add_edge(error_unit, id)
         network.add_edge(neighbour, id)
         
@@ -407,6 +522,31 @@ def furthest_neuron(network, error_unit, ls):
             
     return furthest_node
 
+def closest_neuron(network, error_unit, ls):
+    
+    vi = network.node[error_unit]['v']
+    min_dist = np.inf
+    
+    #neighbour id
+    closest_node = []
+
+    #iterate through neighbours
+    for i in ls:
+
+        #unpack neighbour
+        v = network.node[i]['v']
+
+        #distance in input space
+        d = np.linalg.norm(v - vi)
+
+        #is d > max_dist?
+        if d < min_dist:
+
+            min_dist = d
+            closest_node = i
+            
+    return closest_node
+
 ##GHSOM algorithm
 def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
     
@@ -430,8 +570,10 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
     
     ##inital training phase
     
+    MQE = np.inf
+    
     #train for lam epochs
-    train_network(X, network, lam, eta, sigma, N)
+    train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0)
 
     #classify nodes
     assign_nodes(G, X, network, layer)
@@ -447,21 +589,17 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
         error_unit = identify_error_unit(network)
         
         #expand network
-        expand_network(network, error_unit)
+#         expand_network(network, error_unit)
+        expand_network_2(G, network, error_unit)
         
         #train for l epochs
-        train_network(X, network, lam, eta, sigma, N)
+        train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0)
 
         #classify nodes
         assign_nodes(G, X, network, layer)
 
         #calculate mean network error
         MQE = update_errors(network)
-        
-        ##print to console for progress update
-#         if layer == 1:
-#             stdout.write("\r" + 
-#                          "number of neurons in map: {}, error: {}, target: {}".format(len(network), MQE, e_sg * e_0))
     
     #recalculate error after neuron expansion
     MQE = 0
@@ -646,9 +784,4 @@ def main_no_labels(params, gml_filename, init=1, lam=10000):
     n, d = network.nodes(data=True)[0]
     
     return G, d['n']
-
-
-# In[ ]:
-
-
 

@@ -13,8 +13,8 @@ library(GOSemSim)
 
 file <- "Uetz_screen"
 
-p <- 0.2
-init <- 30
+p <- "1.0"
+init <- 60
 
 db <- org.Sc.sgd.db
 mapping <- "org.Sc.sgd.db"
@@ -47,7 +47,7 @@ numCom
 #distances between neurons
 shortest.path <- read.csv("shortest_path.csv", sep=",", header=FALSE)
 
-cutOff <- 0.01
+cutOff <- 0.05
 
 filename <- sprintf("%s-%s-%s.rda", file, p, cutOff)
 
@@ -175,21 +175,6 @@ cluster_similarity <- function(c){
 
 sapply(g, cluster_similarity)
 
-goTerms <- sapply(gos, function(g)names(g))
-
-simsGO <- mgoSim(goTerms[[1]], goTerms[[4]], semData=hsGO, measure="Wang", combine="BMA")
-
-simsGO
-
-g[[1]]
-
-g[[2]]
-
-mgoSim(names(gos[[1]]), names(gos[[2]]), semData=hsGO, measure="Wang", combine="BMA")
-
-sapply(gos,
-       FUN=function(g1, g2){mgoSim(names(g1), names(g2), semData=hsGO, measure="Wang", combine="BMA")}, MARGIN=3)
-
 simfile <- sprintf("%s-sims.rda", file)
 if (file.exists(simfile)){
     print(sprintf("loading: %s", simfile))
@@ -203,18 +188,6 @@ if (file.exists(simfile)){
 
 
 head(sims)
-
-namedGOs <- sapply(gos, function(g)names(g))
-
-namedGOs <- Filter(length, namedGOs)
-
-namedGOs
-
-simsGO <- mgoSim(namedGOs[[1]], namedGOs[[17]], semData=hsGO, measure="Resnik", combine="BMA")
-
-simsGO
-
-head(shortest.path)
 
 distances <- numeric(length = (numCom * (numCom - 1)) / 2)
 semSims <- numeric(length = (numCom * (numCom - 1)) / 2)

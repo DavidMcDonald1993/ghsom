@@ -38,7 +38,7 @@ from save_embedded_graph27 import main as embed_main
 embed_main('HI-II-14.txt', 'embedded_hi_ii_14.gml')
 
 
-# In[1]:
+# In[ ]:
 
 from spearmint_ghsom import main_no_labels as ghsom_main
 import pickle
@@ -55,8 +55,8 @@ def load_obj(name):
     
 os.chdir("/home/david/Documents/ghsom")
 
-init = 60
-p = 1.0
+init = 1
+p = 0.1
 
 #ghsom parameters
 params = {'w': 0.0001,
@@ -67,9 +67,9 @@ params = {'w': 0.0001,
 
 # G, map = ghsom_main(params, 'embedded_hi_ii_14.gml')
 # G, map = ghsom_main(params, 'embedded_yeast_union.gml')
-G, map = ghsom_main(params, 'embedded_yeast_uetz.gml', init=init, lam=10000)
+G, map = ghsom_main(params, 'embedded_yeast_uetz.gml', init=init, lam=1000)
 
-print 'number of communities detected: {}'.format(len(map))
+print '\nnumber of communities detected: {}'.format(len(map))
 # save_obj((G, map), 'HI_II_communities_{}'.format(p))
 # save_obj((G, map), 'yeast_union_communities_{}'.format(p))
 save_obj((G, map), 'yeast_uetz_communities_{}_{}'.format(p, init))
@@ -77,7 +77,7 @@ save_obj((G, map), 'yeast_uetz_communities_{}_{}'.format(p, init))
 print 'done'
 
 
-# In[5]:
+# In[7]:
 
 import os
 
@@ -89,9 +89,15 @@ G, map = load_obj('yeast_uetz_communities_{}_{}'.format(p, init))
 print 'num communities: {}'.format(len(map))
 
 
-# In[6]:
+# In[11]:
 
-min_nodes = 3
+for n, d in map.nodes(data=True):
+    print len(d['ls'])
+
+
+# In[12]:
+
+min_nodes = 10
 
 ##remove neurons with no assigned nodes
 for n, d in map.nodes(data=True):
@@ -100,12 +106,12 @@ for n, d in map.nodes(data=True):
         print 'removed node {}'.format(n)
 
 
-# In[7]:
+# In[13]:
 
 len(map)
 
 
-# In[8]:
+# In[14]:
 
 import os
 import networkx as nx
