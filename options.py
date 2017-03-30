@@ -1,6 +1,14 @@
 
 # coding: utf-8
 
+# In[5]:
+
+import numpy as np
+
+for i in np.arange(0.5, 1, 0.1)[::-1]:
+    print i
+
+
 # In[4]:
 
 import os

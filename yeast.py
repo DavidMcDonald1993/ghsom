@@ -38,7 +38,7 @@ from save_embedded_graph27 import main as embed_main
 embed_main('HI-II-14.txt', 'embedded_hi_ii_14.gml')
 
 
-# In[5]:
+# In[ ]:
 
 from spearmint_ghsom import main_no_labels as ghsom_main
 import pickle
@@ -66,8 +66,8 @@ params = {'w': 0.0001,
          'e_en': 10}
 
 # G, map = ghsom_main(params, 'embedded_hi_ii_14.gml')
-# G, map = ghsom_main(params, 'embedded_yeast_union.gml')
-G, map = ghsom_main(params, 'embedded_yeast_uetz.gml', init=init, lam=1000)
+G, map = ghsom_main(params, 'embedded_yeast_union.gml', init=init, lam=1000)
+# G, map = ghsom_main(params, 'embedded_yeast_uetz.gml', init=init, lam=1000)
 
 print '\nnumber of communities detected: {}'.format(len(map))
 # save_obj((G, map), 'HI_II_communities_{}'.format(p))
@@ -77,7 +77,7 @@ save_obj((G, map), 'yeast_uetz_communities_{}_{}'.format(p, init))
 print 'done'
 
 
-# In[6]:
+# In[2]:
 
 import os
 
@@ -87,12 +87,6 @@ os.chdir("/home/david/Documents/ghsom")
 # G, map = load_obj('yeast_union_communities_{}'.format(p))
 G, map = load_obj('yeast_uetz_communities_{}_{}'.format(p, init))
 print 'number of communities detected: {}'.format(len(map))
-
-
-# In[7]:
-
-for n, d in map.nodes(data=True):
-    print len(d['ls'])
 
 
 # In[12]:
@@ -106,7 +100,7 @@ for n, d in map.nodes(data=True):
         print 'removed node {}'.format(n)
 
 
-# In[9]:
+# In[5]:
 
 import os
 import networkx as nx
@@ -135,6 +129,93 @@ for n, d in map.nodes(data=True):
             f.write('{}\n'.format(l))
     print 'written community_{}.txt'.format(c)
     c += 1
+
+
+# In[ ]:
+
+import os
+import networkx as nx
+import numpy as np
+from spearmint_ghsom import main_no_labels as ghsom_main
+import pickle
+import shutil
+
+def save_obj(obj, name):
+    with open(name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+def load_obj(name):
+    with open(name + '.pkl', 'rb') as f:
+        return pickle.load(f)
+    
+root_dir = "/home/david/Documents/ghsom"
+
+data = "yeast_uetz"
+init = 1
+
+for p in np.arange(0.1, 1, 0.1)[::-1]:
+    
+    print "p={}".format(p)
+    
+    os.chdir(root_dir)
+    
+    #ghsom parameters
+    params = {'w': 0.0001,
+             'eta': 0.001,
+             'sigma': 1,
+              'e_sg': p,
+             'e_en': 10}
+    
+    map_file = '{}_communities_{}'.format(data, p, init)
+    
+    if not os.path.isfile("{}.pkl".format(map_file)):
+    
+        #run ghsom and save output
+        print "running GHSOM and saving to {}".format(map_file)
+        G, map = ghsom_main(params, 'embedded_{}.gml'.format(data), init=init, lam=1000)
+        print '\nnumber of communities detected: {}, saved map to {}'.format(len(map), map_file)
+        save_obj((G, map), map_file)
+    
+    else:
+        
+        print "{} already exists, loading map".format(map_file)    
+        #load output
+        load_obj(map_file)
+
+    #save results to file
+    dir_name = "{}_communities_{}_{}".format(data, p, init)
+    if os.path.isdir(dir_name):
+        shutil.rmtree(dir_name)
+        print "deleted directory {}".format(dir_name)
+    
+    os.mkdir(dir_name)
+    print 'made directory {}'.format(dir_name)
+
+    os.chdir(dir_name)
+    print "moved to {}".format(dir_name)
+    
+    #all genes
+    all_genes_file = "all_genes.txt"
+    with open(all_genes_file, 'w') as f:
+        for n in G.nodes():
+            f.write("{}\n".format(n))
+    print "written {}".format(all_genes_file)
+    
+    #save shortest path matrix
+    shortest_path = nx.floyd_warshall_numpy(map).astype(np.int)
+    np.savetxt("shortest_path.csv", shortest_path, fmt='%i', delimiter=",")
+    print 'written shortest path matrix'
+    
+    #save communities to file
+    c = 0
+    for n, d in map.nodes(data=True):
+        ls = d['ls']
+        with open('community_{}.txt'.format(c),'w') as f:
+            for l in ls:
+                f.write('{}\n'.format(l))
+        print 'written community_{}.txt'.format(c)
+        c += 1
+    print
 
 
 # In[ ]:

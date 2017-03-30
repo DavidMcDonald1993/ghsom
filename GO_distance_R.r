@@ -11,10 +11,11 @@ library(org.Hs.eg.db)
 library(org.Sc.sgd.db)
 library(GOSemSim)
 
-file <- "Uetz_screen"
+# file <- "Uetz_screen"
+file <- "yeast_uetz"
 
-p <- "1.0"
-init <- 60
+p <- 0.2
+init <- 1
 
 db <- org.Sc.sgd.db
 mapping <- "org.Sc.sgd.db"
@@ -23,17 +24,14 @@ ID <- "ENSEMBL"
 # mapping <- "org.Hs.eg.db"
 # ID <- "ENTREZ"
 
-#background gene list
-setwd('/home/david/Documents/ghsom')
-allGenes <- scan(sprintf("%s.txt", file), character())
-allGenes <- unique(allGenes) 
-length(allGenes)
-
 ##load all community gene lists
-setwd(sprintf("/home/david/Documents/ghsom/uetz_communities_%s_%s", p, init))
-# setwd("/home/david/Documents/ghsom/union_communities_08")
-# setwd("/home/david/Documents/ghsom/hi_communities_08")
+setwd(sprintf("/home/david/Documents/ghsom/%s_communities_%s_%s", file, p, init))
 
+#background gene list
+backgroundFilename <- "all_genes.txt"
+allGenes <- scan(backgroundFilename, character())
+
+#communities
 g <- list()
 numCom <- 0
 filename <- sprintf("community_%s.txt", numCom)
@@ -42,10 +40,11 @@ while (file.exists(filename)) {
     g[[numCom]] <- scan(filename, character())
     filename <- sprintf("community_%s.txt", numCom)
 }
-numCom
 
 #distances between neurons
 shortest.path <- read.csv("shortest_path.csv", sep=",", header=FALSE)
+
+head(shortest.path)
 
 cutOff <- 0.05
 
@@ -88,7 +87,7 @@ if (file.exists(filename)){
 
         #tabulate results
         allRes <- GenTable(GOdata, classicFisher = resultFisher,
-                      orderBy = "classicFisher", topNodes = 500)
+                      orderBy = "classicFisher")
         results[[c]] <- allRes
 
         #go terms < cut off 
@@ -117,16 +116,6 @@ if (file.exists(semsimfile)){
 }
 
 
-information_content <- function(term){
-    return (goSim(term, term, semData=hsGO, measure="Resnik"))
-}
-
-most_representative_term_ic <- function(namedTerms){
-    ics <- sapply(names(namedTerms), information_content)
-    names(ics) <- names(namedTerms)
-    return(names(sort(ics, decreasing=TRUE)[1]))
-}
-
 most_representative_term_ancestor <- function(namedTerms){
     
     counts <- numeric(length(namedTerms))
@@ -145,7 +134,11 @@ most_representative_term_ancestor <- function(namedTerms){
     return (names(sort(counts / sum(counts), decreasing=TRUE)[1]))
 }
 
-sapply(gos, function(g){length(g)})
+cluster_similarity <- function(c){
+    return(mean(mgeneSim(c, semData=hsGO, measure="Wang", verbose=FALSE)))
+}
+
+sapply(g, cluster_similarity)
 
 representativeTermsAncestor <- sapply(Filter(length, gos), most_representative_term_ancestor)
 
@@ -153,27 +146,35 @@ representativeTermsAncestor <-representativeTermsAncestor[!is.na(representativeT
 
 representativeTermsAncestor
 
-representativeTermsIC <- sapply(Filter(length, gos), most_representative_term_ic)
-
-representativeTermsIC
-
 select(GO.db, keys=representativeTermsAncestor, columns=c("TERM", "DEFINITION"))
 
 simsGOAncestor <- mgoSim(representativeTermsAncestor, representativeTermsAncestor, semData=hsGO, measure="Resnik", combine=NULL)
 
 head(simsGOAncestor)
 
+head(shortest.path)
+
+information_content <- function(term){
+    return (goSim(term, term, semData=hsGO, measure="Resnik"))
+}
+
+most_representative_term_ic <- function(namedTerms){
+    ics <- sapply(names(namedTerms), information_content)
+    names(ics) <- names(namedTerms)
+    return(names(sort(ics, decreasing=TRUE)[1]))
+}
+
+representativeTermsIC <- sapply(Filter(length, gos), most_representative_term_ic)
+
+representativeTermsIC
+
+select(GO.db, keys=representativeTermsIC, columns=c("TERM", "DEFINITION"))
+
 simsGOIC <- mgoSim(representativeTermsIC, representativeTermsIC, semData=hsGO, measure="Resnik", combine=NULL)
 
 head(simsGOIC)
 
-head(shortest.path)
-
-cluster_similarity <- function(c){
-    return(mean(mgeneSim(c, semData=hsGO, measure="Wang", verbose=FALSE)))
-}
-
-sapply(g, cluster_similarity)
+head(shortest.path[lengths(gos) > 0])
 
 simfile <- sprintf("%s-sims.rda", file)
 if (file.exists(simfile)){
@@ -181,7 +182,7 @@ if (file.exists(simfile)){
     load(simfile)
     print("loaded")
 } else {
-    sims <- mclusterSim(g, semData=hsGO, measure="Wang", combine="BMA")
+    sims <- mclusterSim(g, semData=hsGO, measure="Resnik", combine="BMA")
     save(sims, file=simfile)
     print (sprintf("saved sim file: %s", simfile))
 }
@@ -196,27 +197,11 @@ completed <- 0
 
 for (c1 in 1:numCom) {
     
-#     t1 <- representativeTerms[c1]
-#     gs1 <- g[[c1]]
-#     if (length(gos[[c1]]) == 0) next
-    
     for (c2 in c1:numCom) {
         
-        if (c1 == c2) next
-            
-#             t2 <- representativeTerms[c2]
-            
-#         if (length(gos[[c2]]) == 0) next
-            
-#         gs2 <- g[[c2]]    
+        if (c1 == c2) next   
         
         completed <- completed + 1  
-        
-        #compute semantic similarity of two protein clusters
-#         semSims[completed] <- clusterSim(gs1, gs2, semData=scGO, measure="Wang", combine="BMA")
-#         semSims[completed] <- mgoSim(gos[[c1]], gos[[c2]], semData=scGO, measure="Wang", combine="BMA")
-#         semSims[completed] <- semSimTable[t1, t2]
-#         semSims[completed] <- t[c1, c2]
         semSims[completed] <- sims[c1, c2]
             
         distances[completed] <- shortest.path[c1, c2]
@@ -224,8 +209,6 @@ for (c1 in 1:numCom) {
         print(sprintf("Completed: %s", completed))
     }
 }
-# distances <- distances[distances > 0]
-# semSims <- semSims[semSims > 0]
 
 plot(distances, semSims, xlab="Distance on Map", ylab="Semantic Similarity")
 

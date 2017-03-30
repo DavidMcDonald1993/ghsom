@@ -108,6 +108,7 @@ def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target)
         
         stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, MQE: {}, target: {}".format(layer,
                         e, num_epochs, len(network), MQE, target) + " " * 10)
+        stdout.flush()
 
 # winning neuron
 def winning_neuron(x, network):
