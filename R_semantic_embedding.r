@@ -25,6 +25,12 @@ semanticDistances <- mgeneSim(allGenes, semData=scGO, measure="Resnik", combine=
 
 semanticDistances
 
-geneSim(allGenes, semData=scGO, measure="Wang", combine="BMA", verbose=FALSE)
+write.csv(semanticDistances, file = sprintf("%s_resnik_similarity.csv", file))
+
+wangSemanticDistances <- mgeneSim(allGenes, semData=scGO, measure="Wang", combine="BMA", verbose=FALSE)
+
+wangSemanticDistances
+
+write.csv(wangSemanticDistances, file = sprintf("%s_wang_similarity.csv", file))
 
 
