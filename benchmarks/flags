@@ -1,0 +1,1 @@
+-N 256 -k 10 -maxk 15 -mu 0.1 -minc 5 -maxc 15

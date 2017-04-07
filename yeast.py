@@ -38,7 +38,7 @@ from save_embedded_graph27 import main as embed_main
 embed_main('HI-II-14.txt', 'embedded_hi_ii_14.gml')
 
 
-# In[ ]:
+# In[1]:
 
 from spearmint_ghsom import main_no_labels as ghsom_main
 import pickle
@@ -56,7 +56,7 @@ def load_obj(name):
 os.chdir("/home/david/Documents/ghsom")
 
 init = 1
-p = 0.3
+p = 0.7
 
 #ghsom parameters
 params = {'w': 0.0001,
@@ -64,6 +64,10 @@ params = {'w': 0.0001,
          'sigma': 1,
           'e_sg': p,
          'e_en': 10}
+
+
+
+# In[ ]:
 
 # G, map = ghsom_main(params, 'embedded_hi_ii_14.gml')
 G, map = ghsom_main(params, 'embedded_yeast_union.gml', init=init, lam=1000)
@@ -77,7 +81,7 @@ save_obj((G, map), 'yeast_uetz_communities_{}_{}'.format(p, init))
 print 'done'
 
 
-# In[2]:
+# In[5]:
 
 import os
 
@@ -85,8 +89,19 @@ os.chdir("/home/david/Documents/ghsom")
 
 # G, map = load_obj('HI_II_communities_{}'.format(p))
 # G, map = load_obj('yeast_union_communities_{}'.format(p))
-G, map = load_obj('yeast_uetz_communities_{}_{}'.format(p, init))
+G, map = load_obj('yeast_union_communities_{}'.format(p))
 print 'number of communities detected: {}'.format(len(map))
+
+
+# In[7]:
+
+import networkx as nx
+
+for n, d in map.nodes(data=True):
+    
+    H = G.subgraph(d['ls'])
+    print len(H)
+    print nx.is_connected(H)
 
 
 # In[12]:
@@ -131,7 +146,7 @@ for n, d in map.nodes(data=True):
     c += 1
 
 
-# In[ ]:
+# In[11]:
 
 import os
 import networkx as nx
@@ -150,7 +165,7 @@ def load_obj(name):
     
 root_dir = "/home/david/Documents/ghsom"
 
-data = "hi_ii_14"
+data = "yeast_uetz_rel"
 init = 1
 
 for p in np.arange(0.1, 1, 0.1)[::-1]:
@@ -166,7 +181,7 @@ for p in np.arange(0.1, 1, 0.1)[::-1]:
               'e_sg': p,
              'e_en': 10}
     
-    map_file = '{}_communities_{}'.format(data, p, init)
+    map_file = '{}_communities_{}_{}'.format(data, p, init)
     
     if not os.path.isfile("{}.pkl".format(map_file)):
     
@@ -184,12 +199,12 @@ for p in np.arange(0.1, 1, 0.1)[::-1]:
 
     #save results to file
     dir_name = "{}_communities_{}_{}".format(data, p, init)
-    if os.path.isdir(dir_name):
-        shutil.rmtree(dir_name)
-        print "deleted directory {}".format(dir_name)
+    if not os.path.isdir(dir_name):
+#         shutil.rmtree(dir_name)
+#         print "deleted directory {}".format(dir_name)
     
-    os.mkdir(dir_name)
-    print 'made directory {}'.format(dir_name)
+        os.mkdir(dir_name)
+        print 'made directory {}'.format(dir_name)
 
     os.chdir(dir_name)
     print "moved to {}".format(dir_name)

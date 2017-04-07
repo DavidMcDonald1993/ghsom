@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[2]:
+# In[1]:
 
 import numpy as np
 import networkx as nx
@@ -176,128 +176,21 @@ def main(txt, gml_filename):
     nx.write_gml(H, gml_filename)
 
 
-# In[8]:
+# In[4]:
 
-# #import graph from file
-# # G = benchmark_hierarchical_graph('1_network.dat', '1_community_first_level.dat', '1_community_second_level.dat')
-# G = nx.karate_club_graph()
+G = nx.read_gml("polbooks.gml")
 
-# #only embed largest subgraph
-# H = max(nx.connected_component_subgraphs(G), key=len)
+#only embed largest subgraph
+H = max(nx.connected_component_subgraphs(G), key=len)
 
-# #embed into X
-# X = floyd_embedding(H)
+#embed into X
+X = floyd_embedding(H)
 
+#save embedding to nodes of G
+set_embedding(H, X)
 
-# In[9]:
-
-# %matplotlib notebook
-
-# import matplotlib.pyplot as plt
-# from mpl_toolkits.mplot3d import Axes3D
-# fig = plt.figure()
-# ax = fig.add_subplot(111, projection='3d')
-# ax.scatter(X[:,0], X[:,1], X[:,2])
-# plt.show()
-
-
-# In[3]:
-
-# # generate graph
-# # # G = nx.karate_club_graph()
-# G = nx.read_gml('football.gml')
-# # # G = nx.read_gml('adjnoun.gml')
-# G = nx.read_gml('dolphins_labelled.gml')
-# # # G = nx.read_gml('polbooks.gml')
-# # # G = benchmark_graph('bin_network.dat', 'community.dat')
-# # # G = benchmark_hierarchical_graph('network.dat', 
-# # #                                  'community_first_level.dat', 
-# # #                                  'community_second_level.dat')
-# # # G = benchmark_hierarchical_graph('literature_network.dat', 
-# # #                                  'literature_community_first_level.dat', 
-# # #                                  'literature_community_second_level.dat')
-# # # G = benchmark_hierarchical_graph('literature_network_32.dat', 
-# # #                                  'literature_community_first_level_32.dat', 
-# # #                                  'literature_community_second_level_32.dat')
-# # # G = benchmark_hierarchical_graph('literature_network_double.dat', 
-# # #                                  'literature_community_first_level_double.dat', 
-# # #                                  'literature_community_second_level_double.dat')
-# # # G = benchmark_hierarchical_graph('rand_network.dat', 
-# # #                                  'rand_community_first_level.dat', 
-# # #                                  'rand_community_second_level.dat')
-# # # G = benchmark_hierarchical_graph('1000network.dat', 
-# # #                                  '1000community_first_level.dat', 
-# # #                                  '1000community_second_level.dat')
-# # G = benchmark_hierarchical_graph('yang_network.dat', 
-# #                                  'yang_community_first_level.dat', 
-# #                                  'yang_community_second_level.dat')
-
-# # print('loaded G',len(G),'nodes')
-
-# labels = ['club']
-# # # labels = ['value']
-# labels = ['group']
-# # # labels = ['firstlevelcommunity']
-# # labels = ['firstlevelcommunity','secondlevelcommunity']
-
-# # #divide graph into connected components
-# connected_graphs = connected_components(G)
-# print('calculated number of connected components')
-
-# # #embedding
-# # X = dsd_embedding(H)
-# X = floyd_embedding(G)
-    
-# # #save embedding to graph
-# set_embedding(G, X)
-# print('embedded graph')
-
-# # #save graph
-# nx.write_gml(G, "embedded_dolphin.gml")
-    
-# print('saved graph')
-
-
-# In[24]:
-
-# import networkx as nx
-# import numpy as np
-# import os
-
-# def graph_measures(G):
-    
-#     return nx.degree_assortativity_coefficient(G), nx.density(G), nx.node_connectivity(G)
-
-# os.chdir('C:\Miniconda3\Jupyter\GHSOM_simplex_dsd')
-
-# num_nodes = 64
-
-# G = nx.read_gml('embedded_karate.gml')
-# print graph_measures(G)
-# G = nx.read_gml('embedded_dolphin.gml')
-# print graph_measures(G)
-# G = nx.read_gml('embedded_polbooks.gml')
-# print graph_measures(G)
-# G = nx.read_gml('embedded_football.gml')
-# print graph_measures(G)
-# print
-
-# for i in range(10):
-#     G = nx.barabasi_albert_graph(num_nodes, np.random.randint(1, 16))
-
-#     print graph_measures(G)
-# #     print nx.degree_pearson_correlation_coefficient(G)
-
-
-# In[25]:
-
-# os.chdir('C:\Miniconda3\Jupyter\GHSOM_simplex_dsd\parameter_tests_small_density_simulated_annealing')
-
-# for i in range(200):
-    
-#     G = nx.read_gml('embedded_network_{}.gml'.format(i))
-    
-#     print graph_measures(G)
+#write gml file
+nx.write_gml(H, "embedded_pollbooks.gml")
 
 
 # In[ ]:

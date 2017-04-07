@@ -6,8 +6,9 @@ library(org.Hs.eg.db)
 library(org.Sc.sgd.db)
 library(GOSemSim)
 
-file <- "yeast_uetz"
+file <- "yeast_union"
 
+ont="BP"
 db <- org.Sc.sgd.db
 mapping <- "org.Sc.sgd.db"
 ID <- "ENSEMBL"
@@ -19,18 +20,42 @@ setwd(sprintf("/home/david/Documents/ghsom/"))
 backgroundFilename <- sprintf("%s_all_genes.txt", file)
 allGenes <- scan(backgroundFilename, character())
 
-scGO <- godata(mapping, ont="BP", keytype=ID)
+scGO <- godata(mapping, ont=ont, keytype=ID)
 
 semanticDistances <- mgeneSim(allGenes, semData=scGO, measure="Resnik", combine="BMA", verbose=FALSE)
 
-semanticDistances
+ncol(semanticDistances)
 
-write.csv(semanticDistances, file = sprintf("%s_resnik_similarity.csv", file))
+semanticDistances <- 1 - semanticDistances
 
-wangSemanticDistances <- mgeneSim(allGenes, semData=scGO, measure="Wang", combine="BMA", verbose=FALSE)
+head(semanticDistances)
 
-wangSemanticDistances
+semanticDistances2 <- sapply(allGenes, function(i) {
+    sapply(allGenes, function(j) {
+        geneSim(i, j, semData=scGO, measure="Wang", combine="BMA")["geneSim"]
+    })
+})
 
-write.csv(wangSemanticDistances, file = sprintf("%s_wang_similarity.csv", file))
+length(allGenes)
 
+nrow(semanticDistances2)
 
+semanticDistances2[is.na(semanticDistances2)] <- 0
+
+write.table(semanticDistances, sep=",", file = sprintf("%s_wang_similarity.csv", file), row.names=FALSE, col.names=FALSE)
+
+library(GOSim)
+
+setOntology(ont, loadIC=FALSE)
+setEvidenceLevel(evidences="all",organism=org.Sc.sgdORGANISM, gomap=org.Sc.sgdGO)
+
+head(allGenes)
+
+allGeneSims <- 1 - getGeneSim(allGenes, similarity="funSimMax", 
+                          similarityTerm="relevance", normalization = TRUE)
+
+allGeneSims[is.na(allGeneSims)] <- 1
+
+head(allGeneSims)
+
+write.table(allGeneSims, sep=",", file = sprintf("%s_rel_similarity_GOSim.csv", file), row.names=TRUE, col.names=FALSE)

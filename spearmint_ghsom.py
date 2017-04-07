@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[62]:
+# In[1]:
 
 from __future__ import division
 
@@ -106,8 +106,8 @@ def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target)
         # drop neighbourhood
         sigma = sigma_0 * np.exp(-2 * sigma_0 * e / num_epochs);
         
-        stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, MQE: {}, target: {}".format(layer,
-                        e, num_epochs, len(network), MQE, target) + " " * 10)
+        stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, MQE: {}, target: {}, sigma: {}".format(layer,
+                        e, num_epochs, len(network), MQE, target, sigma) + " " * 10)
         stdout.flush()
 
 # winning neuron
@@ -266,6 +266,9 @@ def connect_closest_neurons(network, s1, s2):
             
     ##connect
     network.add_edge(c1, c2)
+    
+def intersection(a, b):
+     return list(set(a) & set(b))
 
 def delete_node(network, n):
     
@@ -273,15 +276,18 @@ def delete_node(network, n):
     
     network.remove_node(n)
     
+    if not neighbours:
+        return
+    
     components = [c for c in nx.connected_components(network)]
     
     for i in range(len(components)):
         
-        conn_neigh_1 = components[i].intersection(neighbours)
+        conn_neigh_1 = intersection(components[i], neighbours)
         
         for j in range(i + 1, len(components)):
             
-            conn_neigh_2 = components[j].intersection(neighbours)
+            conn_neigh_2 = intersection(components[j], neighbours)
             
             ##make connection between closest neurons in input space
             connect_closest_neurons(network, conn_neigh_1, conn_neigh_2)
@@ -325,7 +331,7 @@ def get_vector(node):
         
     return v
 
-def expand_network_2(G, network, error_unit):
+def expand_network(G, network, error_unit):
     
     #id of new node
     id = max(network) + 1
@@ -371,131 +377,131 @@ def expand_network_2(G, network, error_unit):
         network.add_edge(n, id)
         network.add_edge(error_unit, id)
         
-##function to expand som using given error unit
-def expand_network(network, error_unit):
+# ##function to expand som using given error unit
+# def expand_network(network, error_unit):
     
-    #identify neighbour pointing furthest away
-    error_unit_neighbours = network.neighbors(error_unit)
+#     #identify neighbour pointing furthest away
+#     error_unit_neighbours = network.neighbors(error_unit)
     
-    #id of new node
-    id = max(network) + 1
+#     #id of new node
+#     id = max(network) + 1
     
-    #v of error unit
-    ve = network.node[error_unit]['v']
+#     #v of error unit
+#     ve = network.node[error_unit]['v']
     
-    #dimension
-    d = len(ve)
+#     #dimension
+#     d = len(ve)
     
-    ##
-    if len(error_unit_neighbours) == 0:
-        ##random position
+#     ##
+#     if len(error_unit_neighbours) == 0:
+#         ##random position
         
-        ##position
-        network.add_node(id)
+#         ##position
+#         network.add_node(id)
         
-        ##weight    
-        v = 2 * (np.random.rand(d) - 0.5) * 1e-2
-        network.node[id]['v'] = v
+#         ##weight    
+#         v = 2 * (np.random.rand(d) - 0.5) * 1e-2
+#         network.node[id]['v'] = v
 
-        ##list of closest nodes
-        ls = []
-        network.node[id]['ls'] = ls
+#         ##list of closest nodes
+#         ls = []
+#         network.node[id]['ls'] = ls
 
-        ##error of neuron
-        e = 0
-        network.node[id]['e'] = e
+#         ##error of neuron
+#         e = 0
+#         network.node[id]['e'] = e
         
-        ##som for neuron
-        n = []
-        network.node[id]['n'] = n
+#         ##som for neuron
+#         n = []
+#         network.node[id]['n'] = n
         
-        ##add edge
-        network.add_edge(error_unit, id)
+#         ##add edge
+#         network.add_edge(error_unit, id)
         
-    elif len(error_unit_neighbours) == 1:
+#     elif len(error_unit_neighbours) == 1:
         
-        #neighbour
-        neighbour = error_unit_neighbours[0]
+#         #neighbour
+#         neighbour = error_unit_neighbours[0]
         
-        #v of neighbour
-        vn = network.node[neighbour]['v']
+#         #v of neighbour
+#         vn = network.node[neighbour]['v']
         
-        ##position
-        network.add_node(id)
+#         ##position
+#         network.add_node(id)
         
-        ##weight    
-        v = (ve + vn) / 2
-        network.node[id]['v'] = v
+#         ##weight    
+#         v = (ve + vn) / 2
+#         network.node[id]['v'] = v
 
-        ##list of closest nodes
-        ls = []
-        network.node[id]['ls'] = ls
+#         ##list of closest nodes
+#         ls = []
+#         network.node[id]['ls'] = ls
 
-        ##error of neuron
-        e = 0
-        network.node[id]['e'] = e
+#         ##error of neuron
+#         e = 0
+#         network.node[id]['e'] = e
         
-        ##som for neuron
-        n = []
-        network.node[id]['n'] = n
+#         ##som for neuron
+#         n = []
+#         network.node[id]['n'] = n
         
-        ##add edges
-        network.add_edge(error_unit, id)
-        network.add_edge(neighbour, id)
+#         ##add edges
+#         network.add_edge(error_unit, id)
+#         network.add_edge(neighbour, id)
         
-    else:
+#     else:
 
-        #neighbour id
-        n1 = furthest_neuron(network, error_unit, error_unit_neighbours)
+#         #neighbour id
+#         n1 = furthest_neuron(network, error_unit, error_unit_neighbours)
         
-        ##v of n1
-        v_n1 = network.node[n1]['v']
+#         ##v of n1
+#         v_n1 = network.node[n1]['v']
             
-        #now we have identified neighbour pointing furthest away in input space
-        #take mean and produce new neuron
+#         #now we have identified neighbour pointing furthest away in input space
+#         #take mean and produce new neuron
         
-        ##must find mutual neighbours
-        neighbour_neighbours = network.neighbors(n1)
+#         ##must find mutual neighbours
+#         neighbour_neighbours = network.neighbors(n1)
         
-        ##mutual neighbours
-        mutual_neighbours = [n for n in error_unit_neighbours if n in neighbour_neighbours]
+#         ##mutual neighbours
+#         mutual_neighbours = [n for n in error_unit_neighbours if n in neighbour_neighbours]
         
-        ##second furthest node
-        n2 = furthest_neuron(network, error_unit, mutual_neighbours)
+#         ##second furthest node
+#         n2 = furthest_neuron(network, error_unit, mutual_neighbours)
         
-        #v of n2
-        v_n2 = network.node[n2]['v']
+#         #v of n2
+#         v_n2 = network.node[n2]['v']
         
-        ##position
-        network.add_node(id)
+#         ##position
+#         network.add_node(id)
         
-        ##weight    
-        v = (ve + v_n1 + v_n2) / 3
-        network.node[id]['v'] = v
+#         ##weight    
+#         v = (ve + v_n1 + v_n2) / 3
+#         network.node[id]['v'] = v
 
-        ##list of closest nodes
-        ls = []
-        network.node[id]['ls'] = ls
+#         ##list of closest nodes
+#         ls = []
+#         network.node[id]['ls'] = ls
 
-        ##error of neuron
-        e = 0
-        network.node[id]['e'] = e
+#         ##error of neuron
+#         e = 0
+#         network.node[id]['e'] = e
         
-        ##som for neuron
-        n = []
-        network.node[id]['n'] = n
+#         ##som for neuron
+#         n = []
+#         network.node[id]['n'] = n
         
-        #remove edge from n1 and n2
-        network.remove_edge(n1, n2)
+#         #remove edge from n1 and n2
+#         network.remove_edge(n1, n2)
         
-        #connect new node to all nodes that are connected to both neighbours (including error unit)
-        for neuron in network.nodes():
-            if network.has_edge(n1, neuron) and network.has_edge(n2, neuron):
-                ##add edges
-                network.add_edge(neuron, id)
+#         #connect new node to all nodes that are connected to both neighbours (including error unit)
+#         for neuron in network.nodes():
+#             if network.has_edge(n1, neuron) and network.has_edge(n2, neuron):
+#                 ##add edges
+#                 network.add_edge(neuron, id)
         
-        network.add_edge(n1, id)
-        network.add_edge(n2, id)
+#         network.add_edge(n1, id)
+#         network.add_edge(n2, id)
 
 ##function to find neuron pointing furthest away in list
 def furthest_neuron(network, error_unit, ls):
@@ -591,7 +597,7 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
         
         #expand network
 #         expand_network(network, error_unit)
-        expand_network_2(G, network, error_unit)
+        expand_network(G, network, error_unit)
         
         #train for l epochs
         train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0)
@@ -785,4 +791,117 @@ def main_no_labels(params, gml_filename, init=1, lam=10000):
     n, d = network.nodes(data=True)[0]
     
     return G, d['n']
+
+
+# In[42]:
+
+G = nx.read_gml("benchmarks/embedded_benchmark_2.gml")
+
+lam = 1000
+
+network, MQE = ghsom(G, lam, 0.0001, 0.001,
+                     1, np.inf, 0.6, 10, 1, 0)
+
+labels = ["firstlevelcommunity"]
+
+#label graph
+neurons = np.zeros(MAX_DEPTH + 1, dtype=np.int)
+unassign_all_nodes(G, labels)
+label_graph(G, network, 0, neurons)
+
+
+# In[43]:
+
+n, d = network.nodes(data=True)[0]
+
+map = d["n"]
+
+num_communities = len(map)
+
+colours = np.random.rand(num_communities, 3) 
+
+layer = 1
+
+
+# In[44]:
+
+import matplotlib.pyplot as plt
+
+##function to visualise graph
+def visualise_graph(G, colours, layer):
+        
+    ## create new figure for graph plot
+    fig, ax = plt.subplots()
+    
+    # graph layout
+    pos = nx.spring_layout(G)
+    
+    #attributes in this graph
+    attributes = np.unique([v for k,v in nx.get_node_attributes(G, 'community'+str(layer)).items()])
+
+    # draw nodes -- colouring by cluster
+    for i in range(min(len(colours), len(attributes))):
+       
+        node_list = [n for n in G.nodes() if G.node[n]['community'+str(layer)] == attributes[i]]
+        colour = [colours[i] for n in range(len(node_list))]
+        
+        nx.draw_networkx_nodes(G, pos, nodelist=node_list, node_color=colour)
+        
+    #draw edges
+    nx.draw_networkx_edges(G, pos)
+
+    # draw labels
+    nx.draw_networkx_labels(G, pos, )
+    
+    #title of plot
+    plt.title('Nodes coloured by cluster, layer: '+str(layer))
+
+    #show plot
+    plt.show()
+
+
+# In[45]:
+
+## visualise graph based on network clusters
+def visualise_network(network, colours, layer):
+    
+    #num neurons in lattice
+    num_neurons = len(network)
+
+    ##create new figure for lattice plot
+    fig, ax = plt.subplots()
+    
+    # graph layout
+    pos = nx.spring_layout(network)
+
+    # draw nodes -- colouring by cluster
+    for i in range(len(colours)):
+        nx.draw_networkx_nodes(network, pos, nodelist = [network.nodes()[i]], node_color = colours[i])
+
+    #draw edges
+    nx.draw_networkx_edges(network, pos)
+
+    # draw labels
+    nx.draw_networkx_labels(network, pos)
+    
+    #label axes
+    plt.title('Neurons in lattice, layer: '+str(layer))
+    
+    #show lattice plot
+    plt.show()
+
+
+# In[46]:
+
+visualise_graph(G, colours, layer)
+
+
+# In[47]:
+
+visualise_network(map, colours, layer)
+
+
+# In[ ]:
+
+
 
