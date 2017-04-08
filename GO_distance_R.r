@@ -9,7 +9,7 @@ library(GOSemSim)
 file <- "yeast_uetz"
 
 ont <- "BP"
-p <- 0.5
+p <- 0.8
 init <- 1
 
 db <- org.Sc.sgd.db
@@ -39,23 +39,7 @@ while (file.exists(filename)) {
 #distances between neurons
 shortest.path <- read.csv("shortest_path.csv", sep=",", header=FALSE)
 
-length(allGenes)
-
-library(GOSim)
-
-setOntology(ont, loadIC=FALSE)
-setEvidenceLevel(evidences="all",organism=org.Sc.sgdORGANISM, gomap=org.Sc.sgdGO)
-
-head(allGenes)
-
-allGeneSims <- 1 - getGeneSim(allGenes, similarity="funSimMax", 
-                          similarityTerm="relevance", normalization = TRUE)
-
-allGeneSims[is.na(allGeneSims)] <- 1
-
-head(allGeneSims)
-
-write.table(allGeneSims, sep=",", file = sprintf("%s_rel_similarity_GOSim.csv", file), row.names=TRUE, col.names=FALSE)
+numCom
 
 ##SEMATIC SIMILARITY
 #construct gosemsim object
@@ -68,7 +52,7 @@ allGeneNames <- scan(character(), file="../yeast_uetz_communities_0.5_1/all_gene
 g  <- sapply(g, function(i) allGeneNames[as.integer(i)])
 allGenes <- allGeneNames[as.integer(allGenes)]
 
-enrichedGOTerms <- function(genes, allGenes, cutOff, correction, ont, mapping, ID, algorithm){
+enrichedGOTerms <- function(genes, allGenes, cutoff, correction, ont, mapping, ID, algorithm){
     interestingGenes <- factor(as.integer(allGenes %in% genes))
     names(interestingGenes) <- allGenes
     
@@ -79,15 +63,26 @@ enrichedGOTerms <- function(genes, allGenes, cutOff, correction, ont, mapping, I
     
     result <- runTest(GOdata, algorithm = algorithm, statistic = "fisher")
     if (correction){
-        GOs <- score(result)[which(p.adjust(score(result), method="BH") <= cutOff)]
+        GOs <- score(result)[which(p.adjust(score(result), method="BH") <= cutoff)]
     } else {
-        GOs <- score(result)[score(result) <= cutOff]
+        GOs <- score(result)[score(result) <= cutoff]
     }
-    return(GOs)
+    
+    plot <- showSigOfNodes(GOdata, score(result), firstSigNodes = 10, useInfo ='all', swPlot = FALSE)
+    
+    return(list(GOdata, GOs, plot))
 }
 
 enrichedGOs  <- sapply(g, enrichedGOTerms, allGenes=allGenes, 
-                      cutOff=0.05, correction=FALSE, ont=ont, mapping=mapping, ID=ID, algorithm="elim")
+                      cutoff=0.05, correction=FALSE, ont=ont, mapping=mapping, ID=ID, algorithm="elim")
+
+enrichedGOs[3,]
+
+graphs <- sapply(enrichedGOs[3,], function(i) igraph.from.graphNEL(i$dag))
+
+graphs[[1]]
+
+plot(graphs[[1]])
 
 lengths(enrichedGOs)
 

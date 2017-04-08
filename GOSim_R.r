@@ -1,12 +1,14 @@
 
+library(GO.db)
 library(topGO)
 library(GOSim)
 library(org.Sc.sgd.db)
+library(igraph)
 
-file <- "yeast_uetz"
+file <- "yeast_union"
 
-ont <- "BP"
-p <- 0.8
+ont <- "MF"
+p <- 0.5
 init <- 1
 
 
@@ -37,40 +39,95 @@ while (file.exists(filename)) {
 #distances between neurons
 shortest.path <- read.csv("shortest_path.csv", sep=",", header=FALSE)
 
-length(g)
+numCom
 
-enrichments <- sapply(g, function(i) GOenrichment(i, allGenes, cutoff=0.01, method="elim"))
+allGeneNames <- scan(character(), file="../yeast_uetz_all_genes.txt")
+allGenes <- allGeneNames[as.integer(allGenes)]
+g <- sapply(g, function(i) allGeneNames[as.integer(i)])
+
+enrichments <- sapply(g, function(i) GOenrichment(i, allGenes, cutoff=0.05, method="elim"))
 
 p.values <- enrichments[2,]
 
-names((p.values[[1]]))
+G <- getGOGraph(names(p.values[[1]]))
+G2  <-  igraph.from.graphNEL(G)
+plot(G2)
+
+allEnrichedGenes <- enrichments[3,]
+
+getEnrichedGenes <- function(enrichedGenes){
+    v <- character()
+    for (i in enrichedGenes){
+        v <- c(v, i[1])
+    }
+    return(v)
+}
+
+clusters <- sapply(allEnrichedGenes, function(i) getEnrichedGenes(i))
+
+clusterSim <- mclusterSim(clusters = clusters, semData = scGO, measure = "Wang", combine = "BMA")
+
+head(clusterSim)
+head(shortest.path)
 
 lengths(p.values)
 
-clusterSimilarity <- sapply(p.values, function(i) mean(getTermSim(names(i), method="relevance")))
+shortest.path <- shortest.path[lengths(p.values) > 0, lengths(p.values) > 0]
 
-clusterSimilarity
+p.values <- p.values[sapply(p.values, function(i) length(i) > 0)]
 
-geneSims12 <- getGeneSim(g[[1]], g[[2]], similarity="max", similarityTerm="Resnik", normalization=TRUE)
+lengths(p.values)
 
-##remove na rows and columns
-f <- function(i) !all(is.na(i))
-geneSims12 <- geneSims12[apply(geneSims12,1,f), apply(geneSims12, 2, f)]
+minGO <- sapply(p.values, function(i) names(i)[which.min(i)])
+maxGO <- sapply(p.values, function(i) names(i)[which.max(i)])
 
+select(GO.db, keys=minGO, columns=c("TERM","DEFINITION"))
+
+select(GO.db, keys=maxGO, columns=c("TERM","DEFINITION"))
+
+head(shortest.path)
+
+colnames(shortest.path) <- maxGO
+rownames(shortest.path) <- maxGO
+
+library(GOSemSim)
+
+scGO <- godata(ont = ont, OrgDb = mapping, keytype = ID)
+
+semSimGO <- mgoSim(maxGO, maxGO, semData=scGO, measure="Wang", combine=NULL)
+
+head(semSimGO)
+head(shortest.path)
+
+termSim <- getTermSim(maxGO, method = "Resnik")
+
+head(termSim)
+head(shortest.path)
+
+#gene sims as dataframe
+t <- getGeneSim(g[[1]], g[[2]], similarity="max", similarityTerm="Resnik", normalization=TRUE)
+
+t
+
+fall <- function(i) !all(is.na(i))
 fany <- function(i) !any(is.na(i))
-    
-m <- matrix(c(1,NaN,3,4,5,6), nrow=3)
+##remove na columns and rows
+s <- t[apply(t, 1, fall), apply(t, 2, fall)]
+##remove any remaining rows with nan
+s <- s[apply(s, 1, fany),]
 
-df <- data.frame(m)
-df <- df[apply(df, 1, fany),]
-df
-apply(df, 1, fany)
+s
+
+##BMA
+((sum(apply(s, 1, max)) + sum(apply(s, 2, max))) / (nrow(s) + ncol(s)))
 
 fall <- function(i) !all(is.na(i))
 fany <- function(i) !any(is.na(i))
     
-geneSims <- sapply(1:length(g), function(i) {
-    sapply(i:length(g), function(j){
+l = 2    
+
+geneSims <- sapply(1:l, function(i) {
+    sapply(i:l, function(j){
         if (i == j){
             return(1)
         } else {
@@ -81,7 +138,7 @@ geneSims <- sapply(1:length(g), function(i) {
             ##remove any remaining rows with nan
             t <- t[apply(t, 1, fany),]
             ##BMA
-            return(sum(apply(t, 1, max) + sum(apply(t, 2, max))) / (nrow(t) + ncol(t)))
+            return((sum(apply(t, 1, max)) + sum(apply(t, 2, max))) / (nrow(t) + ncol(t)))
         }
        
     })
@@ -89,19 +146,7 @@ geneSims <- sapply(1:length(g), function(i) {
 
 head(geneSims)
 
-apply(shortest.path, 1, max)
-
-(sum(apply(shortest.path, 1, max)) + sum(apply(shortest.path, 2, max))) / 12
-
-typeof(shortest.path)
-
 head(shortest.path)
-
-geneSims <- sapply(geneSims, function(i){
-    sapply(i, function(j){
-        j[is.na(j)] <- 0
-    })
-})
 
 geneSimsDF <- sapply(1:length(geneSims), function(i) {
     sapply(1:length(geneSims), function(j) {
