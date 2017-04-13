@@ -5,11 +5,12 @@ library(topGO)
 # library(org.Hs.eg.db)
 library(org.Sc.sgd.db)
 library(GOSemSim)
+library(gridExtra)
 
 file <- "yeast_uetz"
 
 ont <- "BP"
-p <- 0.8
+p <- 0.1
 init <- 1
 
 db <- org.Sc.sgd.db
@@ -40,6 +41,11 @@ while (file.exists(filename)) {
 shortest.path <- read.csv("shortest_path.csv", sep=",", header=FALSE)
 
 numCom
+
+names <- character()
+for (i in 1:length(g)){
+    names <- c(names, sprintf("Com %s", i))
+}
 
 ##SEMATIC SIMILARITY
 #construct gosemsim object
@@ -74,37 +80,30 @@ enrichedGOTerms <- function(genes, allGenes, cutoff, correction, ont, mapping, I
 }
 
 enrichedGOs  <- sapply(g, enrichedGOTerms, allGenes=allGenes, 
-                      cutoff=0.05, correction=FALSE, ont=ont, mapping=mapping, ID=ID, algorithm="elim")
-
-enrichedGOs[3,]
-
-graphs <- sapply(enrichedGOs[3,], function(i) igraph.from.graphNEL(i$dag))
-
-graphs[[1]]
-
-plot(graphs[[1]])
+                      cutoff=0.05, correction=FALSE, ont=ont, mapping=mapping, ID=ID, algorithm="weight01")
 
 lengths(enrichedGOs)
 
-enrichedGOs[[1]]
+p.values <- enrichedGOs[2,]
 
-lengths(g)
+mgeneSim(genes = g[[1]], semData = scGO, measure = "Wang", combine = "BMA")
 
-head(shortest.path)
+clusterSims <- sapply(g, function(i) 
+    mean(mgeneSim(genes = i, semData = scGO, measure = "Wang", combine = "BMA", verbose = FALSE)))
 
-mgeneSim(g[[1]], semData=scGO, measure="Wang")
+mean(clusterSims)
 
-mgoSim(names(enrichedGOs[[1]]), names(enrichedGOs[[2]]), semData=scGO, measure="Resnik", combine="BMA")
+mclusterSim <- mclusterSim(clusters = g, semData = scGO, measure = "Wang", combine = "BMA")
 
-mgoSim(names(enrichedGOs[[1]]), names(enrichedGOs[[32]]), semData=scGO, measure="Resnik", combine="BMA")
+rownames(mclusterSim) <- names
+colnames(mclusterSim) <- names
+grid.table(mclusterSim[1:8, 1:8])
 
-clusterSim(g[[1]], g[[2]], semData=scGO, measure="Wang", combine=NULL)
+rownames(shortest.path) <- names
+colnames(shortest.path) <- names
+grid.table(shortest.path[1:8, 1:8])
 
-clusterSim <- mclusterSim(g, semData=scGO, measure="Wang", combine="BMA")
-
-head(clusterSim)
-
-head(shortest.path)
+library(gri)
 
 pathways <- read.table("../biochemical_pathways.tab", sep="\t")
 cols <- c("pathway_name", "enzyme_name", "E.C._reaction_number", "gene_name", "reference")
@@ -147,8 +146,8 @@ get_pathway_genes <- function(ORFIdentifiers, pathways) {
 pathway_list <- sapply(g, get_pathways, pathways)
 pathway_genes <- sapply(g, get_pathway_genes, pathways)
 
-enrichedGOsPathway <- sapply(pathway_genes[lengths(pathway_genes) > 0], enrichedGOTerms, allGenes=allGeneNames, 
-                      cutOff=cutOff, correction=correction, ont=ont, mapping=mapping, ID=ID)
+enrichedGOsPathway <- sapply(pathway_genes[lengths(pathway_genes) > 0], enrichedGOTerms, allGenes=allGenes, 
+                      cutoff=0.05, correction=FALSE, ont=ont, mapping=mapping, ID=ID)
 
 range <- 1:length(enrichedGOsPathway)
 
@@ -161,9 +160,9 @@ head(simsPathway)
 
 head(shortest.path)
 
-enrichedGOs[[1]]
-
-geneSimilarities <- sapply(allGenes, function(i) sapply(allGenes, function(j) geneSim(i, j, semData=scGO, combine="BMA")))
+geneSimilarities <- sapply(allGenes, function(i) 
+    sapply(allGenes, function(j) 
+        geneSim(i, j, semData=scGO, measure = "Wang", combine="BMA")))
 
 geneSimilarities
 

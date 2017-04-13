@@ -240,9 +240,11 @@ main(graph_file, gml_filename, D=D)
 import os
 import networkx as nx
 import numpy as np
-from ghsom import main_no_labels as ghsom_main
 import pickle
 import shutil
+import Queue
+
+from ghsom import main_no_labels as ghsom_main
 
 def save_obj(obj, name):
     with open(name + '.pkl', 'wb') as f:
@@ -252,12 +254,19 @@ def load_obj(name):
     with open(name + '.pkl', 'rb') as f:
         return pickle.load(f)
     
+def add(d, key, value):
+    if key in d:
+        d[key].append(value)
+    else:
+        d.update({key : [value]})
+    
 root_dir = "/home/david/Documents/ghsom"
 
-data = "yeast_union_rel"
+data = "yeast_uetz"
 init = 1
 
 for p in np.arange(0.1, 1, 0.1)[::-1]:
+# for p in [0.05, 0.01]:
     
     print "p={}".format(p)
     
@@ -265,12 +274,12 @@ for p in np.arange(0.1, 1, 0.1)[::-1]:
     
     #ghsom parameters
     params = {'w': 0.0001,
-             'eta': 0.001,
+             'eta': 0.0001,
              'sigma': 1,
               'e_sg': p,
              'e_en': 10}
     
-    map_file = '{}_communities_{}_{}'.format(data, p, init)
+    map_file = '{}_hierarchy_communities_{}_{}'.format(data, p, init)
     
     if not os.path.isfile("{}.pkl".format(map_file)):
     
@@ -287,13 +296,12 @@ for p in np.arange(0.1, 1, 0.1)[::-1]:
         G, map = load_obj(map_file)
 
     #save results to file
-    dir_name = "{}_communities_{}_{}".format(data, p, init)
-    if not os.path.isdir(dir_name):
-#         shutil.rmtree(dir_name)
-#         print "deleted directory {}".format(dir_name)
-    
-        os.mkdir(dir_name)
-        print 'made directory {}'.format(dir_name)
+    dir_name = "{}_hierarchy_communities_{}_{}".format(data, p, init)
+    if os.path.isdir(dir_name):
+        shutil.rmtree(dir_name)
+        
+    os.mkdir(dir_name)
+    print 'made directory {}'.format(dir_name)
 
     os.chdir(dir_name)
     print "moved to {}".format(dir_name)
@@ -305,20 +313,54 @@ for p in np.arange(0.1, 1, 0.1)[::-1]:
             f.write("{}\n".format(n))
     print "written {}".format(all_genes_file)
     
-    #save shortest path matrix
-    shortest_path = nx.floyd_warshall_numpy(map).astype(np.int)
-    np.savetxt("shortest_path.csv", shortest_path, fmt='%i', delimiter=",")
-    print 'written shortest path matrix'
+    #map queue
+    q = Queue.Queue()
     
-    #save communities to file
-    c = 0
-    for n, d in map.nodes(data=True):
-        ls = d['ls']
-        with open('community_{}.txt'.format(c),'w') as f:
-            for l in ls:
-                f.write('{}\n'.format(l))
-        print 'written community_{}.txt'.format(c)
-        c += 1
+    c = 1
+    depth = 0
+    q.put((c, depth, map))
+    
+    genes = G.nodes()
+    gene_assignments = {k: v for k, v in zip(genes, -np.ones((len(genes), 5)))}
+    
+
+    while not q.empty():
+        
+        map_id, depth, map = q.get()
+        
+        #shortest path matrix
+        communities_in_this_map = range(c + 1, c + 1 + len(map))
+        shortest_path = nx.floyd_warshall_numpy(map).astype(np.int)
+        shortest_path = np.insert(shortest_path, 0, communities_in_this_map, axis=1)
+        shortest_path_file = "{}_shortest_path.csv".format(map_id)
+        np.savetxt(shortest_path_file, shortest_path, fmt='%i', delimiter=",")
+        print 'written shortest path matrix and saved as {}'.format(shortest_path_file)
+        
+        #gene community assignments
+        for n, d in map.nodes(data=True):
+            
+            c += 1
+            
+            for node in d['ls']:
+                gene_assignments[node][depth] = c
+                
+            #add map to queue
+            m = d['n']
+            
+            if not m == []:
+                
+                q.put((c, depth + 1, m))
+        
+    #back to matrix
+    assignment_matrix = np.array([v for k, v in gene_assignments.items()])
+    #remove unnecessary columns
+    mask = assignment_matrix != -1
+    idx = mask.any(axis = 0)
+    assignment_matrix = assignment_matrix[:,idx]
+    
+    assignment_matrix_file = "assignment_matrix.txt"
+    np.savetxt(assignment_matrix_file, assignment_matrix, fmt='%i', delimiter=",")
+    print "written assignment matrix and saved it as {}".format(assignment_matrix_file)
     print
 
 

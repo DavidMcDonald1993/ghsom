@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[55]:
+# In[1]:
 
 from __future__ import division
 
@@ -17,7 +17,8 @@ import sklearn.manifold as man
 
 import matplotlib.pyplot as plt
 
-MAX_DEPTH = 2
+MAX_DEPTH = 5
+MIN_COMMUNITY_SIZE = 5
 
 #function to generate real valued som for graph input
 def initialise_network(X, num_neurons, w):
@@ -108,9 +109,9 @@ def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target)
         # drop neighbourhood
         sigma = sigma_0 * np.exp(-2 * sigma_0 * e / num_epochs);
         
-        stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, MQE: {}, target: {}, sigma: {}".format(layer,
-                        e, num_epochs, len(network), MQE, target, sigma) + " " * 10)
-        stdout.flush()
+        stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, network size: {}, MQE: {}, target: {}, sigma: {}".format(layer,
+                        e, num_epochs, len(network), len(X), MQE, target, sigma) + " " * 20)
+#         stdout.flush()
 
 # winning neuron
 def winning_neuron(x, network):
@@ -224,7 +225,7 @@ def update_errors(network):
         
         if len(ls) == 0:
             delete_node(network, i)
-            print 'deleted node {}'.format(i)
+#             print 'deleted node {}'.format(i)
             continue
             
         num_neurons += 1
@@ -622,7 +623,7 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
         e = network.node[network.nodes()[i]]['e']
         
         #check error
-        if (e > e_en * e_0 and layer < MAX_DEPTH) or e_0 == np.inf:
+        if (e > e_en * e_0 and layer < MAX_DEPTH and len(ls) > MIN_COMMUNITY_SIZE) or e_0 == np.inf:
 
             if e_0 == np.inf:
                 e_0 = e
@@ -631,7 +632,7 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
             H = G.subgraph(ls)
             
             #recursively run algorithm to create new network for subgraph of this neurons nodes
-            n, e = ghsom(H, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer + 1)
+            n, e = ghsom(H, lam, w, eta, sigma, e, e_sg, e_en, init, layer + 1)
             
             #repack
             network.node[network.nodes()[i]]['e'] = e
@@ -849,6 +850,7 @@ def main_no_labels(params, gml_filename, init=1, lam=10000):
     #run ghsom algorithm
     network, MQE = ghsom(G, lam, params['w'], params['eta'],
                          params['sigma'], np.inf, params['e_sg'], params['e_en'], init, layer)
+    
         
     n, d = network.nodes(data=True)[0]
     
