@@ -5,21 +5,24 @@ library(topGO)
 library(org.Sc.sgd.db)
 library(GOSemSim)
 library(gridExtra)
+library(GOSim)
 
 file <- "yeast_uetz"
 
 ont <- "BP"
-p <- 0.5
-init <- 1
+p <- 0.1
 
 db <- org.Sc.sgd.db
 mapping <- "org.Sc.sgd.db"
 ID <- "ENSEMBL"
 
 ##load all community gene lists
-setwd(sprintf("/home/david/Documents/ghsom/%s_hierarchy_communities_%s_%s", file, p, init))
+setwd(sprintf("/home/david/Documents/ghsom/%s_hierarchy_communities_%s", file, p))
 
 scGO <- godata(OrgDb = mapping, keytype = ID, ont = ont)
+
+setOntology(ont, loadIC=TRUE)
+setEvidenceLevel(evidences="all", organism=org.Sc.sgdORGANISM, gomap=org.Sc.sgdGO)
 
 generateMap <- function(filename){
     map <- as.matrix(read.csv(filename, sep=",", header = F))
@@ -38,7 +41,7 @@ allGenes <- scan(backgroundFilename, character())
 shortestPathFiles  <- list.files(pattern="*shortest_path*")
 
 #shortest paths list
-shortestPaths <- sapply(shortestPathFiles, generateMap)
+shortestPaths <- lapply(shortestPathFiles, generateMap)
 names(shortestPaths) <- sapply(names(shortestPaths), function(name) strsplit(name, "_")[[1]][[1]])
 
 #communitiy assignemtns
@@ -46,6 +49,10 @@ assignments <- as.matrix(read.csv("assignment_matrix.csv", sep=",", header=F))
 rownames(assignments) <- allGenes
 colnames <- sapply(1:ncol(assignments), function(i) as.character(i-1))
 colnames(assignments) <- colnames
+    
+allGenesInDB <- keys(db)
+
+shortestPaths
 
 getDepth <- function(com) {
     return(which(apply(assignments, 2, function(i) any(i == com))))
@@ -65,6 +72,15 @@ getSuperCommunity <- function(com){
 
 getShortestPath <- function(com){
     return (try(shortestPaths[[com]]))
+}
+                       
+getNeighbours <- function(com){
+    
+    superCommunity <- getSuperCommunity(com)
+    map <- getShortestPath(superCommunity)
+    v <- map[com,] == 1
+    return (names(v[v]))
+    
 }
 
 communitySimilarity <- function(community) {
@@ -89,6 +105,18 @@ layerMeanSimilarities
 
 plot(colnames, layerMeanSimilarities, xlab="Layer", ylab="Mean Similarity", type = "l")
 
+enrichmentResults <- sapply(1:max(assignments), function(i) {
+
+    genesOfInterest <- getGenes(i)
+    genesOfInterest <- genesOfInterest[genesOfInterest %in% allGenesInDB]
+    GOenrichment(genesOfInterest, allGenesInDB, cutoff=0.05, method="weight01")
+})
+
+rownames(enrichmentResults) <- c("terms","p-values","genes")
+colnames(enrichmentResults) <- 1:max(assignments)
+
+enrichmentResults["terms",]
+
 mapSimilarity <- function(mapID) {
     map <- getShortestPath(as.character(mapID))
     if (is.null(map)) return (NaN)
@@ -104,6 +132,39 @@ similarityOfAllMapsOnLayer <- function(layer) {
 }
 
 layerMeanMapSimilarities <- sapply(colnames[1:length(colnames)-1], similarityOfAllMapsOnLayer)
+
+sho
+
+getShortestPath("1")
+
+getNeighbours("4")
+
+numSharedTerms <- function(c1, c2) {
+    return(length(intersect(names(enrichmentResults[["p-values", c1]]),
+                            names(enrichmentResults[["p-values", c2]]))))
+}
+
+getShortestPath("1")
+
+assignments
+
+sapply(as.character(2:7), function(i) sapply(as.character(2:7), function(j) numSharedTerms(i, j)))
+
+getShortestPath("7")
+
+intersect(names(enrichmentResults[["p-values", "4"]]), names(enrichmentResults[["p-values", "2"]]))
+
+intersect(names(enrichmentResults[["p-values", "4"]]), names(enrichmentResults[["p-values", "14"]]))
+
+intersect(names(enrichmentResults[["p-values", "4"]]), names(enrichmentResults[["p-values", "13"]]))
+
+intersect(names(enrichmentResults[["p-values", "13"]]), names(enrichmentResults[["p-values", "14"]]))
+
+select(GO.db, keys=names(enrichmentResults[["p-values", 4]]), columns=c("GOID", "TERM", "DEFINITION"))
+
+select(GO.db, keys=names(enrichmentResults[["p-values", 14]]), columns=c("GOID", "TERM", "DEFINITION"))
+
+getSubCommunities(4)
 
 layerMeanMapSimilarities
 
@@ -139,5 +200,17 @@ similarities <- sapply(2:max(assignments), function(i)
     }))
 
 head(similarities)
+
+uniprots <- sapply(1:max(assignments), function(i) {
+    orfs <- getGenes(i)
+    orfs <- orfs[orfs %in% allGenesInDB]
+    return(as.character(org.Sc.sgdUNIPROT[orfs]))
+})
+
+uniprots[1]
+
+g <- getGenes(2)[getGenes(2) %in% allGenesInDB]
+
+org.Sc.sgdUNIPROT[g]
 
 

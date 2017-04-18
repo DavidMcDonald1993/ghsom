@@ -5,10 +5,10 @@ library(GOSim)
 library(org.Sc.sgd.db)
 library(igraph)
 
-file <- "yeast_union"
+file <- "yeast_uetz"
 
-ont <- "MF"
-p <- 0.8
+ont <- "BP"
+p <- 0.1
 init <- 1
 eta <- 0.0001
 

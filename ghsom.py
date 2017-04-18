@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[15]:
 
 from __future__ import division
 
@@ -854,21 +854,4 @@ def main_no_labels(params, gml_filename, init=1, lam=10000):
     n, d = network.nodes(data=True)[0]
     
     return G, d['n']
-
-
-# In[14]:
-
-import networkx as nx
-G = nx.read_edgelist("Y2H_union.txt")
-
-
-# In[15]:
-
-for c in nx.connected_components(G):
-    print len(c)
-
-
-# In[ ]:
-
-
 

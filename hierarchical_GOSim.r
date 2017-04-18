@@ -8,7 +8,7 @@ library(igraph)
 file <- "yeast_uetz"
 
 ont <- "BP"
-p <- 0.5
+p <- 0.1
 init <- 1
 
 db <- org.Sc.sgd.db
@@ -19,7 +19,7 @@ ID <- "ENSEMBL"
 setwd(sprintf("/home/david/Documents/ghsom/%s_hierarchy_communities_%s_%s", file, p, init))
 
 setOntology(ont, loadIC=TRUE)
-setEvidenceLevel(evidences="all",organism=org.Sc.sgdORGANISM, gomap=org.Sc.sgdGO)
+setEvidenceLevel(evidences="all", organism=org.Sc.sgdORGANISM, gomap=org.Sc.sgdGO)
 
 generateMap <- function(filename){
     map <- as.matrix(read.csv(filename, sep=",", header = F))
@@ -89,7 +89,9 @@ communitySimilarity <- function(community) {
     }
 }
 
-communitySimilarity(enrichmentResults[["p-values", "27"]])
+communitySimilarity(enrichmentResults[["p-values", 27]])
+
+getGenes(27)
 
 layerSimilarity <- function(layer) {
     pvalueList <- enrichmentResults["p-values", unique(assignments[,layer][assignments[,layer] != -1]) - 1]
@@ -127,8 +129,10 @@ data(geneList)
 de <- names(geneList)[abs(geneList) > 1.5]
 head(de)
 
-x <- enrichPathway(gene=de,pvalueCutoff=0.05, readable=T)
-head(as.data.frame(x))
+length(de)
+
+x <- enrichPathway(gene=de, pvalueCutoff=0.05, readable=T)
+nrow(as.data.frame(x))
 
 entrezCommunities <- sapply(1:max(assignments), function(i){
     orfs <- getGenes(i)
@@ -136,16 +140,11 @@ entrezCommunities <- sapply(1:max(assignments), function(i){
     return(as.character(org.Sc.sgdENTREZID[orfs]))
 })
 
-entrezCommunities[[1]]
-
-columns(db)
+length(entrezCommunities[[1]])
 
 pathwayEnrichments <- sapply(entrezCommunities[2:length(entrezCommunities)],
                              function(i) enrichPathway(gene=i, organism = "yeast", universe = entrezCommunities[[1]], 
-                                                                            pvalueCutoff = 0.05, readable = T))
-
-library(ReactomePA)
-getDb("human")
+                                                                            pvalueCutoff = 0.05))
 
 orfs <- getGenes(2)
 orfs <- orfs[orfs%in%allGenesInDB]
@@ -163,27 +162,12 @@ x <- enrichPathway(gene = entrezAll, organism = "yeast", universe = entrezAllDB)
 
 head(as.data.frame(x))
 
-print(x)
-
 unionAllGenes <- scan(character(), file="../yeast_union_all_genes.txt")
 
 unionAllGenes <- unionAllGenes[unionAllGenes%in%allGenesInDB]
 
 x <- enrichPathway(gene = as.character(org.Sc.sgdENTREZID[unionAllGenes]), organism = "yeast", universe = entrezAllDB)
 
-print (x)
-
-source("http://bioconductor.org/biocLite.R")
-biocLite(c("AnnotationDbi", "impute", "GO.db", "preprocessCore"))
-install.packages("WGCNA") 
+head(as.data.frame(x))
 
 library(WGCNA)
-
-allowWGCNAThreads()
-
-library(org.Sc.sgd.db)
-uniProt <- org.Sc.sgdUNIPROT
-
-uniProt[["P04076"]]
-
-
