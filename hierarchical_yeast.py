@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[ ]:
+# In[3]:
 
 import os
 import networkx as nx
@@ -51,7 +51,7 @@ for p in np.arange(0.1, 1, 0.1)[::-1]:
     
         #run ghsom and save output
         print "running GHSOM and saving to {}.pkl".format(map_file)
-        G, map = ghsom_main(params, 'embedded_{}.gml'.format(data), init=init, lam=1000)
+        G, map = ghsom_main(params, 'embedded_{}.gml'.format(data), init=init, lam=10000)
         print '\nnumber of communities detected: {}, saved map to {}'.format(len(map), map_file)
         save_obj((G, map), map_file)
     
@@ -87,7 +87,7 @@ for p in np.arange(0.1, 1, 0.1)[::-1]:
     q.put((c, depth, map))
     
     genes = G.nodes()
-    gene_assignments = {k: v for k, v in zip(genes, -np.ones((len(genes), 5)))}
+    gene_assignments = {k: v for k, v in zip(genes, -np.ones((len(genes), 10)))}
     
 
     while not q.empty():
@@ -125,7 +125,7 @@ for p in np.arange(0.1, 1, 0.1)[::-1]:
     assignment_matrix = assignment_matrix[:,idx]
     assignment_matrix = np.insert(assignment_matrix, 0, 1, axis=1)
     
-    assignment_matrix_file = "assignment_matrix.txt"
+    assignment_matrix_file = "assignment_matrix.csv"
     np.savetxt(assignment_matrix_file, assignment_matrix, fmt='%i', delimiter=",")
     print "written assignment matrix and saved it as {}".format(assignment_matrix_file)
     print

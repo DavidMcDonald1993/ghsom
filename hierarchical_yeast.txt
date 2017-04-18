@@ -27,9 +27,7 @@ root_dir = "/home/david/Documents/ghsom"
 data = "yeast_uetz"
 init = 1
 
-eta = 0.001
-
-for p in [0.5, 0.4, 0.3, 0.2, 0.1, 0.05]:
+for p in np.arange(0.1, 1, 0.1)[::-1]:
 # for p in [0.05, 0.01]:
     
     print "p={}".format(p)
@@ -38,9 +36,9 @@ for p in [0.5, 0.4, 0.3, 0.2, 0.1, 0.05]:
     
     #ghsom parameters
     params = {'w': 0.0001,
-             'eta': eta,
+             'eta': 0.0001,
              'sigma': 1,
-              'e_sg': 0.5,
+              'e_sg': p,
              'e_en': p}
     
     map_file = '{}_hierarchy_communities_{}_{}'.format(data, p, init)
@@ -61,10 +59,11 @@ for p in [0.5, 0.4, 0.3, 0.2, 0.1, 0.05]:
 
     #save results to file
     dir_name = "{}_hierarchy_communities_{}_{}".format(data, p, init)
-    if not os.path.isdir(dir_name):
-    
-        os.mkdir(dir_name)
-        print 'made directory {}'.format(dir_name)
+    if os.path.isdir(dir_name):
+        shutil.rmtree(dir_name)
+        
+    os.mkdir(dir_name)
+    print 'made directory {}'.format(dir_name)
 
     os.chdir(dir_name)
     print "moved to {}".format(dir_name)
@@ -72,17 +71,14 @@ for p in [0.5, 0.4, 0.3, 0.2, 0.1, 0.05]:
     #all genes
     all_genes_file = "all_genes.txt"
     with open(all_genes_file, 'w') as f:
-        for n in G.nodes():
-            f.write("{}\n".format(n))
+        for n, d in G.nodes(data=True):
+            f.write("{}\n".format(d['label']))
     print "written {}".format(all_genes_file)
     
     #map queue
     q = Queue.Queue()
     
-#     prev_map = []
-#     prev_neu = []
-    
-    c = 0
+    c = 1
     depth = 0
     q.put((c, depth, map))
     
@@ -116,10 +112,6 @@ for p in [0.5, 0.4, 0.3, 0.2, 0.1, 0.05]:
             if not m == []:
                 
                 q.put((c, depth + 1, m))
-            
-#             c += 1
-        
-#         map_id += 1
         
     #back to matrix
     assignment_matrix = np.array([v for k, v in gene_assignments.items()])
@@ -127,42 +119,11 @@ for p in [0.5, 0.4, 0.3, 0.2, 0.1, 0.05]:
     mask = assignment_matrix != -1
     idx = mask.any(axis = 0)
     assignment_matrix = assignment_matrix[:,idx]
+    assignment_matrix = np.insert(assignment_matrix, 0, 1, axis=1)
     
     assignment_matrix_file = "assignment_matrix.txt"
     np.savetxt(assignment_matrix_file, assignment_matrix, fmt='%i', delimiter=",")
     print "written assignment matrix and saved it as {}".format(assignment_matrix_file)
-        
-#         prev_map, prev_neu, depth, map = q.get()
-    
-#         #save shortest path matrix
-#         shortest_path = nx.floyd_warshall_numpy(map).astype(np.int)
-#         shortest_path_file = "{}_{}_{}_{}_shortest_path.csv".format(map_id, prev_map, prev_neu, depth)
-#         np.savetxt(shortest_path_file, shortest_path, fmt='%i', delimiter=",")
-#         print 'written shortest path matrix and saved as {}'.format(shortest_path_file)
-        
-#         c = 0
-#         for n, d in map.nodes(data=True):
-        
-#             #write list of nodes
-#             ls = d['ls']
-#             community_file = "{}_{}_{}_{}_community_{}.txt".format(map_id, prev_map, prev_neu, depth, c)
-#             with open(community_file,'w') as f:
-#                 for l in ls:
-#                     f.write('{}\n'.format(l))
-#             print 'written {}'.format(community_file)
-        
-#             #add map to queue
-#             m = d['n']
-            
-#             if not m == []:
-                
-#                 q.put((map_id, c, depth + 1, m))
-#                 print 'added map to queue'
-            
-#             c += 1 
-        
-#         map_id += 1
-
-#         print
+    print
 
 

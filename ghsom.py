@@ -17,8 +17,7 @@ import sklearn.manifold as man
 
 import matplotlib.pyplot as plt
 
-MAX_DEPTH = 5
-MIN_COMMUNITY_SIZE = 5
+MIN_EXPANSION_SIZE = 10
 
 #function to generate real valued som for graph input
 def initialise_network(X, num_neurons, w):
@@ -109,8 +108,8 @@ def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target)
         # drop neighbourhood
         sigma = sigma_0 * np.exp(-2 * sigma_0 * e / num_epochs);
         
-        stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, network size: {}, MQE: {}, target: {}, sigma: {}".format(layer,
-                        e, num_epochs, len(network), len(X), MQE, target, sigma) + " " * 20)
+        stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, network size: {}, MQE: {}, target: {}".format(layer,
+                        e, num_epochs, len(network), len(X), MQE, target) + " " * 20)
 #         stdout.flush()
 
 # winning neuron
@@ -623,7 +622,7 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
         e = network.node[network.nodes()[i]]['e']
         
         #check error
-        if (e > e_en * e_0 and layer < MAX_DEPTH and len(ls) > MIN_COMMUNITY_SIZE) or e_0 == np.inf:
+        if (e > e_en * e_0 and len(ls) > MIN_EXPANSION_SIZE) or e_0 == np.inf:
 
             if e_0 == np.inf:
                 e_0 = e
@@ -855,4 +854,21 @@ def main_no_labels(params, gml_filename, init=1, lam=10000):
     n, d = network.nodes(data=True)[0]
     
     return G, d['n']
+
+
+# In[14]:
+
+import networkx as nx
+G = nx.read_edgelist("Y2H_union.txt")
+
+
+# In[15]:
+
+for c in nx.connected_components(G):
+    print len(c)
+
+
+# In[ ]:
+
+
 

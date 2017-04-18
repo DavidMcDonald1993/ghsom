@@ -9,7 +9,7 @@ library(gridExtra)
 file <- "yeast_uetz"
 
 ont <- "BP"
-p <- 0.4
+p <- 0.5
 init <- 1
 
 db <- org.Sc.sgd.db
@@ -42,7 +42,7 @@ shortestPaths <- sapply(shortestPathFiles, generateMap)
 names(shortestPaths) <- sapply(names(shortestPaths), function(name) strsplit(name, "_")[[1]][[1]])
 
 #communitiy assignemtns
-assignments <- as.matrix(read.csv("assignment_matrix.txt", sep=",", header=F))
+assignments <- as.matrix(read.csv("assignment_matrix.csv", sep=",", header=F))
 rownames(assignments) <- allGenes
 colnames <- sapply(1:ncol(assignments), function(i) as.character(i-1))
 colnames(assignments) <- colnames
@@ -67,6 +67,46 @@ getShortestPath <- function(com){
     return (try(shortestPaths[[com]]))
 }
 
+communitySimilarity <- function(community) {
+    geneSims <- mgeneSim(genes = getGenes(as.character(community)), 
+                         semData = scGO, measure = "Wang", combine = "BMA", verbose=F)
+    if (length(geneSims) > 1) {
+        return(mean(geneSims[upper.tri(geneSims)]))
+    } else {
+        return (NaN)
+    }
+}
+
+layerSimilarity <- function(layer) {
+    communitiesSimilarity <- sapply(unique(assignments[,layer][assignments[,layer] != -1]), communitySimilarity)
+    communitiesSimilarity <- communitiesSimilarity[!is.na(communitiesSimilarity)]
+    return(mean(communitiesSimilarity))
+}
+
+layerMeanSimilarities <- sapply(colnames, layerSimilarity)
+
+layerMeanSimilarities
+
+plot(colnames, layerMeanSimilarities, xlab="Layer", ylab="Mean Similarity", type = "l")
+
+mapSimilarity <- function(mapID) {
+    map <- getShortestPath(as.character(mapID))
+    if (is.null(map)) return (NaN)
+    communities <- sapply(rownames(map), function(rowname) getGenes(rowname))
+    communitySimilarities <- mclusterSim(clusters = communities, semData = scGO, measure = "Wang", combine = "BMA")
+    return(mean(communitySimilarities[upper.tri(communitySimilarities)]))
+}
+
+similarityOfAllMapsOnLayer <- function(layer) {
+    mapSimilarities <- sapply(unique(assignments[,layer][assignments[,layer] != -1]), mapSimilarity)
+    mapSimilarities <- mapSimilarities[!is.na(mapSimilarities)]
+    return(mean(mapSimilarities))
+}
+
+layerMeanMapSimilarities <- sapply(colnames[1:length(colnames)-1], similarityOfAllMapsOnLayer)
+
+layerMeanMapSimilarities
+
 getDistance <- function(c1, c2) {
     
     m1 <- getSuperCommunity(c1)
@@ -85,36 +125,19 @@ getDistance <- function(c1, c2) {
     
 }
 
-getDistance("46", "10")
+distances <- sapply(as.character(2:max(assignments)), function(i)
+    sapply(as.character(2:max(assignments)), function(j) {
+        return(getDistance(i, j))
+    }))
 
-assignments
+head(distances)
 
-getShortestPath("20")
+similarities <- sapply(2:max(assignments), function(i)
+    sapply(2:max(assignments), function(j) {
+        return(clusterSim(cluster1 = geneCommunities[[i]], 
+                          cluster2 = geneCommunities[[j]], semData = scGO, measure = "Wang", combine = "BMA"))
+    }))
 
-getGenes("36")
-
-getGenes("37")
-
-getGenes("38")
-
-getGenes("39")
-
-communities
-
-getGenes(getSuperCommunity("20"))
-
-getSuperCommunity("20")
-
-getShortestPath("1")
-
-comms <- unique(assignments[,colnames[2]])
-
-layerMeanSimilarities <- sapply(colnames, function(colname)
-    mean(sapply(unique(assignments[,colname][assignments[,colname] != -1]), function(com) 
-    mean(mgeneSim(genes = getGenes(com), semData = scGO, measure = "Wang", combine = "BMA", verbose=F)))))
-
-layerMeanSimilarities
-
-plot(0:4, layerMeanSimilarities, xlab="Layer", ylab="Mean Similarity", type = "l")
+head(similarities)
 
 
