@@ -3,66 +3,159 @@ library(ReactomePA)
 library(org.Sc.sgd.db)
 library(clusterProfiler)
 
-reactomeEdgeList <- scan(character(), file="reactome_edgelist.txt")
+file <- "yeast_reactome"
 
-reactomeEdgeList <- unique(reactomeEdgeList)
+# ont <- "BP"
+p <- 0.2
 
-head(reactomeEdgeList)
+db <- org.Sc.sgd.db
+# mapping <- "org.Sc.sgd.db"
+# ID <- "ENSEMBL"
 
-conversionTable <- select(org.Sc.sgd.db, reactomeEdgeList, "ENTREZID", "UNIPROT")
+##load all community gene lists
+setwd(sprintf("/home/david/Documents/ghsom/%s_hierarchy_communities_%s", file, p))
 
-conversionTable  <- conversionTable[!is.na(conversionTable[,"ENTREZID"]),]
+generateMap <- function(filename){
+    map <- as.matrix(read.csv(filename, sep=",", header = F))
+    communities <- map[,1]
+    map <- map[,2:ncol(map)]
+    rownames(map) <- communities
+    colnames(map) <- communities
+    return (map)
+}
 
-head(conversionTable, n=20)
+#background gene list
+backgroundFilename <- "all_genes.txt"
+allGenes <- scan(backgroundFilename, character())
 
-allGenesOfInterest <- conversionTable[,"ENTREZID"]
+##convert all genes to ENTREZID
+conversion <- select(db, allGenes, "ENTREZID", "UNIPROT")
+conversion <- subset(conversion, !duplicated(conversion$UNIPROT))
+allGenes <- conversion$ENTREZID
 
-universe <- keys(org.Sc.sgd.db)
-allGenesConversion <- select(org.Sc.sgd.db, keys(org.Sc.sgd.db), columns="ENTREZID", keytype="ORF")
+#shortest path files
+shortestPathFiles  <- list.files(pattern="*shortest_path*")
 
-allGenesConversion <- allGenesConversion[!is.na(allGenesConversion[,"ENTREZID"]),]
+#shortest paths list
+shortestPaths <- sapply(shortestPathFiles, generateMap)
+names(shortestPaths) <- sapply(names(shortestPaths), function(name) strsplit(name, "_")[[1]][[1]])
 
-universe <- allGenesConversion[,"ENTREZID"]
-head(universe)
+#communitiy assignemtns
+assignments <- as.matrix(read.csv("assignment_matrix.csv", sep=",", header=F))
+rownames(assignments) <- allGenes
+colnames <- sapply(1:ncol(assignments), function(i) as.character(i - 1))
+colnames(assignments) <- colnames
+    
+#filter out genes with no ENTREZID
+assignments <- assignments[!is.na(rownames(assignments)),]
+    
+#all ORF identifers in org.Sc.sgd.db converted to EntrezID
+allGenesInDB <- select(db, keys(db), "ENTREZID", "ORF")$ENTREZID
+allGenesInDB <- allGenesInDB[!is.na(allGenesInDB)]
+    
+#communities detected
+communities <- unique(as.character(assignments))
+communities <- communities[communities != ""]
+communities <- sort(communities)
 
-geneList <- factor(as.integer(universe %in% allGenesOfInterest))
+communities
 
-head(geneList, n=100)
+getDepth <- function(com) {
+    return(which(apply(assignments, 2, function(i) any(i == com))))
+}
 
-x <- enrichPathway(gene=conversionTable[,"ENTREZID"], universe = universe,
-                   pvalueCutoff=0.05, organism = "yeast")
+getGenes <- function(com){
+    depth <- getDepth(com)
+    return(names(which(assignments[, depth] == com)))
+}
 
-df <- as.data.frame(x)
+getSubCommunities <- function(com){
+    depth <- getDepth(com)
+    genesInCommunity <- subset(assignments, assignments[,depth] == com)
+    return(as.character(unique(genesInCommunity[,depth + 1])))
+}
 
-head(df)
+getSuperCommunity <- function(com){
+    depth <- getDepth(com)
+    genesInCommunity <- subset(assignments, assignments[,depth] == com)
+    return(as.character(unique(genesInCommunity[,depth - 1])))
+}
 
-df[df[,"Description"]=="p53-Independent DNA Damage Response",]
+getShortestPath <- function(com){
+    return (try(shortestPaths[[com]]))
+}
+                       
+getNeighbours <- function(com){
+    
+    superCommunity <- getSuperCommunity(com)
+    superCommunityMap <- getShortestPath(superCommunity)
+    v <- superCommunityMap[com, ] == 1
+    return (names(v[v]))
+    
+}
 
-barplot(x, showCategory=10)
+getShortestPath("1")
+
+genesInCommunities <- sapply(communities, function(i) getGenes(i))
+
+lengths(genesInCommunities)
+
+enrichmentResults <- sapply(genesInCommunities, 
+                            function (i) enrichPathway(gene = i, universe = allGenesInDB, organism = "yeast"))
+names(enrichmentResults) <- communities
+
+getSubCommunities("1")
+
+x <- enrichmentResults[["1-5"]]
+
+nrow(as.data.frame(x))
+
+barplot(x, showCategory=10, title = "Top 10 Enriched Pathways")
 
 dotplot(x, showCategory=15)
 
 enrichMap(x, layout=igraph::layout.kamada.kawai, vertex.label.cex = 1)
 
-cnetplot(x, categorySize="pvalue", foldChange=geneList)
+numbersOfEnrichedPathways <- sapply(enrichmentResults, function(i) nrow(as.data.frame(i)))
+enrichedClusters <- genesInCommunities[numbersOfEnrichedPathways > 0]
 
-require(clusterProfiler)
-data(gcSample)
-res <- compareCluster(gcSample, fun="enrichPathway")
+res <- compareCluster(genesInCommunities[numbersOfEnrichedPathways > 0], 
+                      fun="enrichPathway", universe = allGenesInDB, organism = "yeast")
 
-gcSample
-
-png(filename="cluster_pathway_enrichment.png", width = 1500)
+png(filename=sprintf("cluster_pathway_enrichment_overall_%s.png", p), width = 2000)
 plot(res)
 dev.off()
 
-tail(geneList, n=100)
+com  <-  "4"
 
-data(geneList)
-y <- gsePathway(geneList, nPerm=1000,
-                minGSSize=120, pvalueCutoff=0.2,
-                pAdjustMethod="BH", verbose=FALSE)
-result <- as.data.frame(y)
-head(result)
+depth <- getDepth(com)
+genesInCommunity <- subset(assignments, assignments[,depth] == com)
+length(unique(genesInCommunity[,depth + 1]))
 
-viewPathway(pathName = "p53-Independent DNA Damage Response", organism = "yeast", readable = F)
+is.null(getSubCommunities("4"))
+
+plotPathwayEnrichments <- function(community){
+    
+    subCommunities <- getSubCommunities(community)
+    
+    if (length(subCommunities) > 0) {
+
+        communitiesOfInterest <- c(community, subCommunities)
+
+        res <- compareCluster(genesInCommunities[communitiesOfInterest], 
+                      fun="enrichPathway", universe = allGenesInDB, organism = "yeast")
+        
+        png(filename=sprintf("cluster_pathway_enrichment_%s.png", community), width = 2000)
+        print(plot(res))
+        dev.off()
+        
+    }
+
+}
+
+plotPathwayEnrichments("1")
+
+viewPathway(pathName = "Nonsense Mediated Decay (NMD) enhanced by the Exon Junction Complex (EJC)", 
+            organism = "yeast", readable = F)
+
+
