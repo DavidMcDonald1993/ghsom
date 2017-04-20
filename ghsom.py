@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[45]:
 
 from __future__ import division
 
@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 MIN_EXPANSION_SIZE = 10
 
 #function to generate real valued som for graph input
-def initialise_network(X, num_neurons, w):
+def initialise_network(X, num_neurons):
     
     #network will be a one dimensional list
     network = nx.Graph()
@@ -77,7 +77,7 @@ def initialise_network(X, num_neurons, w):
 
 
 # function to train SOM on given graph
-def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target):
+def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target, num_deleted_neurons):
     
     #initial learning rate
     eta = eta_0
@@ -108,8 +108,8 @@ def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target)
         # drop neighbourhood
         sigma = sigma_0 * np.exp(-2 * sigma_0 * e / num_epochs);
         
-        stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, network size: {}, MQE: {}, target: {}".format(layer,
-                        e, num_epochs, len(network), len(X), MQE, target) + " " * 20)
+        stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, network size: {}, MQE: {}, target: {}, deleted_neurons: {}".format(layer,
+                        e, num_epochs, len(network), len(X), MQE, target, num_deleted_neurons) + " " * 20)
 #         stdout.flush()
 
 # winning neuron
@@ -207,7 +207,7 @@ def assign_nodes(G, X, network, layer):
         network.node[closest_ref]['e'] += min_distance
 
 ##function to return lattice grid of errors
-def update_errors(network):
+def update_errors(network, num_deleted_neurons):
     
     #mean network error
     mqe = 0;
@@ -224,7 +224,7 @@ def update_errors(network):
         
         if len(ls) == 0:
             delete_node(network, i)
-#             print 'deleted node {}'.format(i)
+            num_deleted_neurons += 1
             continue
             
         num_neurons += 1
@@ -241,7 +241,7 @@ def update_errors(network):
     #mean
     mqe /= num_neurons
     
-    return mqe
+    return mqe, num_deleted_neurons
 
 def connect_closest_neurons(network, s1, s2):
     
@@ -557,7 +557,7 @@ def closest_neuron(network, error_unit, ls):
     return closest_node
 
 ##GHSOM algorithm
-def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
+def ghsom(G, lam, eta, sigma, e_0, e_sg, e_en, init, layer):
     
     #embedding
     X = get_embedding(G)
@@ -575,24 +575,28 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
         ini = init
     
     #create som for this neuron
-    network = initialise_network(X, ini, w)
+    network = initialise_network(X, ini)
     
     ##inital training phase
     
+    #meal quantization error
     MQE = np.inf
     
+    #number of neurons deleted from the map
+    num_deleted_neurons = 0
+    
     #train for lam epochs
-    train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0)
+    train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0, num_deleted_neurons)
 
     #classify nodes
     assign_nodes(G, X, network, layer)
 
     #calculate mean network error
-    MQE = update_errors(network)
+    MQE, num_deleted_neurons = update_errors(network, num_deleted_neurons)
     
     ##som growth phase
     #repeat until error is low enough
-    while MQE > e_sg * e_0:
+    while MQE > e_sg * e_0 and num_deleted_neurons < 3:
     
         #find neuron with greatest error
         error_unit = identify_error_unit(network)
@@ -602,13 +606,13 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
         expand_network(G, network, error_unit)
         
         #train for l epochs
-        train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0)
+        train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0, num_deleted_neurons)
 
         #classify nodes
         assign_nodes(G, X, network, layer)
 
         #calculate mean network error
-        MQE = update_errors(network)
+        MQE, num_deleted_neurons = update_errors(network, num_deleted_neurons)
     
     #recalculate error after neuron expansion
     MQE = 0
@@ -622,7 +626,7 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
         e = network.node[network.nodes()[i]]['e']
         
         #check error
-        if (e > e_en * e_0 and len(ls) > MIN_EXPANSION_SIZE) or e_0 == np.inf:
+        if (e > e_en * e_0 and len(ls) > MIN_EXPANSION_SIZE and num_deleted_neurons < 3) or e_0 == np.inf:
 
             if e_0 == np.inf:
                 e_0 = e
@@ -631,7 +635,7 @@ def ghsom(G, lam, w, eta, sigma, e_0, e_sg, e_en, init, layer):
             H = G.subgraph(ls)
             
             #recursively run algorithm to create new network for subgraph of this neurons nodes
-            n, e = ghsom(H, lam, w, eta, sigma, e, e_sg, e_en, init, layer + 1)
+            n, e = ghsom(H, lam, eta, sigma, e, e_sg, e_en, init, layer + 1)
             
             #repack
             network.node[network.nodes()[i]]['e'] = e
@@ -809,7 +813,7 @@ def visualise_network(network, colours, layer):
     plt.show()
 
 ###evaluate fitness
-def fitness(w, eta, sigma, e_sg, e_en, gml_filename, labels, init, lam):
+def fitness(eta, sigma, e_sg, e_en, gml_filename, labels, init, lam):
     
     G = nx.read_gml(gml_filename)
     labels = labels.split(',')
@@ -818,7 +822,7 @@ def fitness(w, eta, sigma, e_sg, e_en, gml_filename, labels, init, lam):
     layer = 0
     
     #run ghsom algorithm
-    network, MQE = ghsom(G, lam, w, eta, sigma, np.inf, e_sg, e_en, init, layer)
+    network, MQE = ghsom(G, lam, eta, sigma, np.inf, e_sg, e_en, init, layer)
 
     #label graph
     neurons = np.zeros(MAX_DEPTH + 1, dtype=np.int)
@@ -836,7 +840,7 @@ def fitness(w, eta, sigma, e_sg, e_en, gml_filename, labels, init, lam):
 
 def main(params, gml_filename, labels, init=1, lam=10000):
 
-    return fitness(params['w'], params['eta'], params['sigma'],
+    return fitness(params['eta'], params['sigma'],
                    params['e_sg'], params['e_en'], gml_filename, labels, init, lam)
 
 def main_no_labels(params, gml_filename, init=1, lam=10000):
@@ -847,11 +851,109 @@ def main_no_labels(params, gml_filename, init=1, lam=10000):
     layer = 0
 
     #run ghsom algorithm
-    network, MQE = ghsom(G, lam, params['w'], params['eta'],
+    network, MQE = ghsom(G, lam, params['eta'],
                          params['sigma'], np.inf, params['e_sg'], params['e_en'], init, layer)
     
         
     n, d = network.nodes(data=True)[0]
     
     return G, d['n']
+
+
+# In[3]:
+
+get_ipython().run_cell_magic(u'time', u'', u'for i in [x**2 for x in range(1000000)]:\n    i')
+
+
+# In[4]:
+
+get_ipython().run_cell_magic(u'time', u'', u'for i in (x**2 for x in range(1000000)):\n    i')
+
+
+# In[8]:
+
+import networkx as nx
+import numpy as np
+
+def embed_node((n, d)):
+    
+    d["embedding"] = 0
+    
+    return((n, d))
+
+
+# In[9]:
+
+G = nx.karate_club_graph()
+
+
+# In[10]:
+
+get_ipython().run_cell_magic(u'timeit', u'', u'\nmap(embed_node, G.nodes(data=True))')
+
+
+# In[11]:
+
+H = nx.karate_club_graph()
+
+
+# In[12]:
+
+get_ipython().run_cell_magic(u'timeit', u'', u'\nfor n,d in H.nodes(data=True):\n    \n    embed_node((n, d))')
+
+
+# In[13]:
+
+I = nx.karate_club_graph()
+
+
+# In[14]:
+
+get_ipython().run_cell_magic(u'timeit', u'', u'\n[embed_node((n, d)) for n, d in I.nodes(data=True)]')
+
+
+# In[17]:
+
+g = (embed_node((n, d)) for n, d in I.nodes(data=True))
+
+
+# In[18]:
+
+for i in g:
+    print i
+
+
+# In[21]:
+
+get_ipython().run_cell_magic(u'timeit', u'', u'xrange(10000)')
+
+
+# In[22]:
+
+get_ipython().run_cell_magic(u'timeit', u'', u'range(10000)')
+
+
+# In[29]:
+
+get_ipython().magic(u'lsmagic')
+
+
+# In[33]:
+
+get_ipython().magic(u'load_ext Cython')
+
+
+# In[44]:
+
+get_ipython().run_cell_magic(u'cython', u'', u'def geo_prog_cython(double alpha, int n):\n    cdef double current = 1.0\n    cdef double sum = current\n    cdef int i\n    for i in range(n):\n        current = current * alpha\n        sum = sum + current\n    return sum\n\ntimeit geo_prog_cython(0.5, 100)')
+
+
+# In[42]:
+
+get_ipython().run_cell_magic(u'timeit', u'', u'def geo_prog_python(alpha, n):\n    current = 1.0\n    sum = current\n    for i in range(n):\n        current += alpha\n        sum += current\n    return sum\n\ngeo_prog_python(0.5, 100)')
+
+
+# In[ ]:
+
+
 

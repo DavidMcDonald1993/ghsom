@@ -41,7 +41,8 @@ shortestPaths <- sapply(shortestPathFiles, generateMap)
 names(shortestPaths) <- sapply(names(shortestPaths), function(name) strsplit(name, "_")[[1]][[1]])
 
 #communitiy assignemtns
-assignments <- as.matrix(read.csv("assignment_matrix.csv", sep=",", header=F))
+assignments <- as.matrix(read.csv("assignment_matrix.csv", sep=",", header=F, colClasses="character"))
+assignments[assignments == ""] <- NA 
 rownames(assignments) <- allGenes
 colnames <- sapply(1:ncol(assignments), function(i) as.character(i - 1))
 colnames(assignments) <- colnames
@@ -58,8 +59,6 @@ communities <- unique(as.character(assignments))
 communities <- communities[communities != ""]
 communities <- sort(communities)
 
-communities
-
 getDepth <- function(com) {
     return(which(apply(assignments, 2, function(i) any(i == com))))
 }
@@ -72,7 +71,12 @@ getGenes <- function(com){
 getSubCommunities <- function(com){
     depth <- getDepth(com)
     genesInCommunity <- subset(assignments, assignments[,depth] == com)
-    return(as.character(unique(genesInCommunity[,depth + 1])))
+    if (depth < ncol(genesInCommunity)){
+        return(as.character(unique(genesInCommunity[,depth + 1])))
+    } else {
+        return (NULL)
+    }
+    
 }
 
 getSuperCommunity <- function(com){
@@ -94,17 +98,15 @@ getNeighbours <- function(com){
     
 }
 
-getShortestPath("1")
-
 genesInCommunities <- sapply(communities, function(i) getGenes(i))
+
+communities
 
 lengths(genesInCommunities)
 
 enrichmentResults <- sapply(genesInCommunities, 
                             function (i) enrichPathway(gene = i, universe = allGenesInDB, organism = "yeast"))
 names(enrichmentResults) <- communities
-
-getSubCommunities("1")
 
 x <- enrichmentResults[["1-5"]]
 
@@ -119,33 +121,27 @@ enrichMap(x, layout=igraph::layout.kamada.kawai, vertex.label.cex = 1)
 numbersOfEnrichedPathways <- sapply(enrichmentResults, function(i) nrow(as.data.frame(i)))
 enrichedClusters <- genesInCommunities[numbersOfEnrichedPathways > 0]
 
-res <- compareCluster(genesInCommunities[numbersOfEnrichedPathways > 0], 
+res <- compareCluster(enrichedClusters, 
                       fun="enrichPathway", universe = allGenesInDB, organism = "yeast")
 
-png(filename=sprintf("cluster_pathway_enrichment_overall_%s.png", p), width = 2000)
+png(filename=sprintf("cluster_pathway_enrichment_all_communities_%s.png", p), width=1500)
 plot(res)
 dev.off()
-
-com  <-  "4"
-
-depth <- getDepth(com)
-genesInCommunity <- subset(assignments, assignments[,depth] == com)
-length(unique(genesInCommunity[,depth + 1]))
-
-is.null(getSubCommunities("4"))
 
 plotPathwayEnrichments <- function(community){
     
     subCommunities <- getSubCommunities(community)
     
-    if (length(subCommunities) > 0) {
+    if (!is.null(subCommunities) && !any(is.na(subCommunities) > 0)) {
 
         communitiesOfInterest <- c(community, subCommunities)
+        genesOfInterest <- enrichedClusters[communitiesOfInterest]
+        genesOfInterest <- genesOfInterest[!is.na(names(genesOfInterest))]
 
-        res <- compareCluster(genesInCommunities[communitiesOfInterest], 
+        res <- compareCluster(genesOfInterest,
                       fun="enrichPathway", universe = allGenesInDB, organism = "yeast")
         
-        png(filename=sprintf("cluster_pathway_enrichment_%s.png", community), width = 2000)
+        png(filename=sprintf("cluster_pathway_enrichment_%s.png", community), width=500 + length(genesOfInterest) * 150)
         print(plot(res))
         dev.off()
         
@@ -153,7 +149,7 @@ plotPathwayEnrichments <- function(community){
 
 }
 
-plotPathwayEnrichments("1")
+sapply(communities, plotPathwayEnrichments)
 
 viewPathway(pathName = "Nonsense Mediated Decay (NMD) enhanced by the Exon Junction Complex (EJC)", 
             organism = "yeast", readable = F)

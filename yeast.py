@@ -101,12 +101,13 @@ for data in ["yeast_reactome"]:
             c = 1
             
             #shortest path matrix
-            communities_in_this_map = np.array(["{}-{}".format(map_id, i) for i in range(c, c + len(map))])
+            communities_in_this_map = np.array(["{}-{}".format(str(map_id).zfill(2), 
+                                                               str(i).zfill(2)) for i in range(c, c + len(map))])
             
             shortest_path = nx.floyd_warshall_numpy(map).astype(np.int)
 #             shortest_path = np.insert(shortest_path, 0, communities_in_this_map, axis=1)
             shortest_path_df = pd.DataFrame(shortest_path, index=communities_in_this_map)
-            shortest_path_file = "{}_shortest_path.csv".format(map_id)
+            shortest_path_file = "{}_shortest_path.csv".format(str(map_id).zfill(2))
 #             np.savetxt(shortest_path_file, shortest_path, fmt='%i', delimiter=",")
             shortest_path_df.to_csv(shortest_path_file, index=True, header=False, sep=',')
             print 'wrote shortest path matrix and saved as {}'.format(shortest_path_file)
@@ -116,7 +117,7 @@ for data in ["yeast_reactome"]:
             #gene community assignments
             for n, d in map.nodes(data=True):
                 
-                community = "{}-{}".format(map_id, c)
+                community = communities_in_this_map[c - 1]
 
                 for node in d['ls']:
                     gene_assignments[node][depth] = community
@@ -130,79 +131,16 @@ for data in ["yeast_reactome"]:
                     
                 c += 1
                     
-
-#         print gene_assignments
-                    
         #back to matrix
         assignment_matrix = np.array([v for k, v in gene_assignments.items()])
         #remove unnecessary columns
         mask = assignment_matrix != ""
         idx = mask.any(axis = 0)
         assignment_matrix = assignment_matrix[:,idx]
-        assignment_matrix = np.insert(assignment_matrix, 0, "1", axis=1)
+        assignment_matrix = np.insert(assignment_matrix, 0, "01", axis=1)
 
         assignment_matrix_file = "assignment_matrix.csv"
         np.savetxt(assignment_matrix_file, assignment_matrix, delimiter=",", fmt="%s")
         print "wrote assignment matrix and saved it as {}".format(assignment_matrix_file)
         print
-
-
-# In[50]:
-
-import numpy as np
-
-
-# In[51]:
-
-A = np.empty([2,3], dtype=object)
-
-
-# In[52]:
-
-A
-
-
-# In[57]:
-
-A[1, :2] = "h"
-
-
-# In[79]:
-
-B = np.array([["" for j in range(2)] for i in range(5)])
-
-
-# In[80]:
-
-B.shape
-
-
-# In[82]:
-
-B==""
-
-
-# In[61]:
-
-A.shape
-
-
-# In[72]:
-
-A.dtype
-
-
-# In[78]:
-
-A[:,0].all() is None
-
-
-# In[60]:
-
-np.any(A==None, axis=1)
-
-
-# In[ ]:
-
-
 
