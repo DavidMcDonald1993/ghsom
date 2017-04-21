@@ -6,14 +6,15 @@ library(clusterProfiler)
 file <- "yeast_reactome"
 
 # ont <- "BP"
-p <- 0.2
+e_sg <- 0.3
+e_en <- 0.2
 
 db <- org.Sc.sgd.db
 # mapping <- "org.Sc.sgd.db"
 # ID <- "ENSEMBL"
 
 ##load all community gene lists
-setwd(sprintf("/home/david/Documents/ghsom/%s_hierarchy_communities_%s", file, p))
+setwd(sprintf("/home/david/Documents/ghsom/%s_hierarchy_communities_%s_%s", file, e_sg, e_en))
 
 generateMap <- function(filename){
     map <- as.matrix(read.csv(filename, sep=",", header = F))
@@ -102,29 +103,31 @@ genesInCommunities <- sapply(communities, function(i) getGenes(i))
 
 communities
 
+length(communities)
+
 lengths(genesInCommunities)
 
 enrichmentResults <- sapply(genesInCommunities, 
                             function (i) enrichPathway(gene = i, universe = allGenesInDB, organism = "yeast"))
 names(enrichmentResults) <- communities
 
-x <- enrichmentResults[["1-5"]]
+x <- enrichmentResults[["01-05"]]
 
 nrow(as.data.frame(x))
 
-barplot(x, showCategory=10, title = "Top 10 Enriched Pathways")
+barplot(x, showCategory=10, title = "Top Enriched Pathways")
 
 dotplot(x, showCategory=15)
 
 enrichMap(x, layout=igraph::layout.kamada.kawai, vertex.label.cex = 1)
 
 numbersOfEnrichedPathways <- sapply(enrichmentResults, function(i) nrow(as.data.frame(i)))
-enrichedClusters <- genesInCommunities[numbersOfEnrichedPathways > 0]
+enrichedCommunities <- genesInCommunities[numbersOfEnrichedPathways > 0]
 
-res <- compareCluster(enrichedClusters, 
+res <- compareCluster(enrichedCommunities, 
                       fun="enrichPathway", universe = allGenesInDB, organism = "yeast")
 
-png(filename=sprintf("cluster_pathway_enrichment_all_communities_%s.png", p), width=1500)
+png(filename=sprintf("community_pathway_enrichment_all_communities.png"), width=1500)
 plot(res)
 dev.off()
 
@@ -135,15 +138,19 @@ plotPathwayEnrichments <- function(community){
     if (!is.null(subCommunities) && !any(is.na(subCommunities) > 0)) {
 
         communitiesOfInterest <- c(community, subCommunities)
-        genesOfInterest <- enrichedClusters[communitiesOfInterest]
+        print(communitiesOfInterest)
+        genesOfInterest <- enrichedCommunities[communitiesOfInterest]
         genesOfInterest <- genesOfInterest[!is.na(names(genesOfInterest))]
-
-        res <- compareCluster(genesOfInterest,
-                      fun="enrichPathway", universe = allGenesInDB, organism = "yeast")
+        print (genesOfInterest)
         
-        png(filename=sprintf("cluster_pathway_enrichment_%s.png", community), width=500 + length(genesOfInterest) * 150)
-        print(plot(res))
-        dev.off()
+        if (length(genesOfInterest) > 2) {
+            res <- compareCluster(genesOfInterest,
+            fun="enrichPathway", universe = allGenesInDB, organism = "yeast")
+
+            png(filename=sprintf("community_pathway_enrichment_%s.png", community), width=500 + length(genesOfInterest) * 150)
+            print(plot(res))
+            dev.off()
+        } 
         
     }
 

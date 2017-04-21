@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[45]:
+# In[1]:
 
 from __future__ import division
 
@@ -53,11 +53,6 @@ def initialise_network(X, num_neurons):
         ##som for neuron
         network.node[i]['n'] = []
         
-#         ##add edges
-#         for j in range(max(0, i-2), i):
-            
-#             network.add_edge(i, j)
-        
         #connections
         if i % lattice_size > 0:
             #horizontal connection
@@ -77,7 +72,7 @@ def initialise_network(X, num_neurons):
 
 
 # function to train SOM on given graph
-def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target, num_deleted_neurons):
+def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target):
     
     #initial learning rate
     eta = eta_0
@@ -108,9 +103,8 @@ def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target,
         # drop neighbourhood
         sigma = sigma_0 * np.exp(-2 * sigma_0 * e / num_epochs);
         
-        stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, network size: {}, MQE: {}, target: {}, deleted_neurons: {}".format(layer,
-                        e, num_epochs, len(network), len(X), MQE, target, num_deleted_neurons) + " " * 20)
-#         stdout.flush()
+        stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, network size: {}, MQE: {}, target: {}".format(layer,
+                        e, num_epochs, len(network), len(X), MQE, target) + " " * 20)
 
 # winning neuron
 def winning_neuron(x, network):
@@ -586,7 +580,7 @@ def ghsom(G, lam, eta, sigma, e_0, e_sg, e_en, init, layer):
     num_deleted_neurons = 0
     
     #train for lam epochs
-    train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0, num_deleted_neurons)
+    train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0)
 
     #classify nodes
     assign_nodes(G, X, network, layer)
@@ -606,7 +600,7 @@ def ghsom(G, lam, eta, sigma, e_0, e_sg, e_en, init, layer):
         expand_network(G, network, error_unit)
         
         #train for l epochs
-        train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0, num_deleted_neurons)
+        train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0)
 
         #classify nodes
         assign_nodes(G, X, network, layer)
@@ -860,97 +854,17 @@ def main_no_labels(params, gml_filename, init=1, lam=10000):
     return G, d['n']
 
 
-# In[3]:
+# In[2]:
 
-get_ipython().run_cell_magic(u'time', u'', u'for i in [x**2 for x in range(1000000)]:\n    i')
-
-
-# In[4]:
-
-get_ipython().run_cell_magic(u'time', u'', u'for i in (x**2 for x in range(1000000)):\n    i')
+params = {'eta': 0.0001,
+         'sigma': 1,
+          'e_sg': 0.3,
+         'e_en': 0.3}
 
 
-# In[8]:
+# In[ ]:
 
-import networkx as nx
-import numpy as np
-
-def embed_node((n, d)):
-    
-    d["embedding"] = 0
-    
-    return((n, d))
-
-
-# In[9]:
-
-G = nx.karate_club_graph()
-
-
-# In[10]:
-
-get_ipython().run_cell_magic(u'timeit', u'', u'\nmap(embed_node, G.nodes(data=True))')
-
-
-# In[11]:
-
-H = nx.karate_club_graph()
-
-
-# In[12]:
-
-get_ipython().run_cell_magic(u'timeit', u'', u'\nfor n,d in H.nodes(data=True):\n    \n    embed_node((n, d))')
-
-
-# In[13]:
-
-I = nx.karate_club_graph()
-
-
-# In[14]:
-
-get_ipython().run_cell_magic(u'timeit', u'', u'\n[embed_node((n, d)) for n, d in I.nodes(data=True)]')
-
-
-# In[17]:
-
-g = (embed_node((n, d)) for n, d in I.nodes(data=True))
-
-
-# In[18]:
-
-for i in g:
-    print i
-
-
-# In[21]:
-
-get_ipython().run_cell_magic(u'timeit', u'', u'xrange(10000)')
-
-
-# In[22]:
-
-get_ipython().run_cell_magic(u'timeit', u'', u'range(10000)')
-
-
-# In[29]:
-
-get_ipython().magic(u'lsmagic')
-
-
-# In[33]:
-
-get_ipython().magic(u'load_ext Cython')
-
-
-# In[44]:
-
-get_ipython().run_cell_magic(u'cython', u'', u'def geo_prog_cython(double alpha, int n):\n    cdef double current = 1.0\n    cdef double sum = current\n    cdef int i\n    for i in range(n):\n        current = current * alpha\n        sum = sum + current\n    return sum\n\ntimeit geo_prog_cython(0.5, 100)')
-
-
-# In[42]:
-
-get_ipython().run_cell_magic(u'timeit', u'', u'def geo_prog_python(alpha, n):\n    current = 1.0\n    sum = current\n    for i in range(n):\n        current += alpha\n        sum += current\n    return sum\n\ngeo_prog_python(0.5, 100)')
+get_ipython().run_cell_magic(u'time', u'', u'G, network = main_no_labels(params=params, gml_filename="embedded_yeast_reactome.gml")')
 
 
 # In[ ]:
