@@ -854,17 +854,17 @@ def main_no_labels(params, gml_filename, init=1, lam=10000):
     return G, d['n']
 
 
-# In[2]:
+# In[8]:
 
 params = {'eta': 0.0001,
          'sigma': 1,
-          'e_sg': 0.3,
-         'e_en': 0.3}
+          'e_sg': 0.8,
+         'e_en': 0.1}
 
 
-# In[ ]:
+# In[9]:
 
-get_ipython().run_cell_magic(u'time', u'', u'G, network = main_no_labels(params=params, gml_filename="embedded_yeast_reactome.gml")')
+get_ipython().run_cell_magic(u'time', u'', u'G, network = main_no_labels(params=params, gml_filename="embedded_yeast_uetz.gml", lam=1000)')
 
 
 # In[ ]:

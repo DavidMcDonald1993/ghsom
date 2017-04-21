@@ -138,10 +138,10 @@ plotPathwayEnrichments <- function(community){
     if (!is.null(subCommunities) && !any(is.na(subCommunities) > 0)) {
 
         communitiesOfInterest <- c(community, subCommunities)
-        print(communitiesOfInterest)
+#         print(communitiesOfInterest)
         genesOfInterest <- enrichedCommunities[communitiesOfInterest]
         genesOfInterest <- genesOfInterest[!is.na(names(genesOfInterest))]
-        print (genesOfInterest)
+#         print (genesOfInterest)
         
         if (length(genesOfInterest) > 2) {
             res <- compareCluster(genesOfInterest,
