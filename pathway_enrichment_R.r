@@ -7,7 +7,7 @@ file <- "yeast_reactome"
 
 # ont <- "BP"
 e_sg <- 0.3
-e_en <- 0.2
+e_en <- 0.1
 
 db <- org.Sc.sgd.db
 # mapping <- "org.Sc.sgd.db"

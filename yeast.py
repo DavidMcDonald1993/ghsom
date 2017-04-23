@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 import os
 import pickle
@@ -147,6 +147,16 @@ for data in ["yeast_reactome"]:
             np.savetxt(assignment_matrix_file, assignment_matrix, delimiter=",", fmt="%s")
             print "wrote assignment matrix and saved it as {}".format(assignment_matrix_file)
             print
+
+
+# In[1]:
+
+ID = "01-05"
+
+
+# In[3]:
+
+ID.count("-")
 
 
 # In[ ]:

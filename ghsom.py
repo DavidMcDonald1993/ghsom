@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[21]:
 
 from __future__ import division
 
@@ -372,132 +372,7 @@ def expand_network(G, network, error_unit):
         #connect to error unit and closest neighbour
         network.add_edge(n, id)
         network.add_edge(error_unit, id)
-        
-# ##function to expand som using given error unit
-# def expand_network(network, error_unit):
-    
-#     #identify neighbour pointing furthest away
-#     error_unit_neighbours = network.neighbors(error_unit)
-    
-#     #id of new node
-#     id = max(network) + 1
-    
-#     #v of error unit
-#     ve = network.node[error_unit]['v']
-    
-#     #dimension
-#     d = len(ve)
-    
-#     ##
-#     if len(error_unit_neighbours) == 0:
-#         ##random position
-        
-#         ##position
-#         network.add_node(id)
-        
-#         ##weight    
-#         v = 2 * (np.random.rand(d) - 0.5) * 1e-2
-#         network.node[id]['v'] = v
 
-#         ##list of closest nodes
-#         ls = []
-#         network.node[id]['ls'] = ls
-
-#         ##error of neuron
-#         e = 0
-#         network.node[id]['e'] = e
-        
-#         ##som for neuron
-#         n = []
-#         network.node[id]['n'] = n
-        
-#         ##add edge
-#         network.add_edge(error_unit, id)
-        
-#     elif len(error_unit_neighbours) == 1:
-        
-#         #neighbour
-#         neighbour = error_unit_neighbours[0]
-        
-#         #v of neighbour
-#         vn = network.node[neighbour]['v']
-        
-#         ##position
-#         network.add_node(id)
-        
-#         ##weight    
-#         v = (ve + vn) / 2
-#         network.node[id]['v'] = v
-
-#         ##list of closest nodes
-#         ls = []
-#         network.node[id]['ls'] = ls
-
-#         ##error of neuron
-#         e = 0
-#         network.node[id]['e'] = e
-        
-#         ##som for neuron
-#         n = []
-#         network.node[id]['n'] = n
-        
-#         ##add edges
-#         network.add_edge(error_unit, id)
-#         network.add_edge(neighbour, id)
-        
-#     else:
-
-#         #neighbour id
-#         n1 = furthest_neuron(network, error_unit, error_unit_neighbours)
-        
-#         ##v of n1
-#         v_n1 = network.node[n1]['v']
-            
-#         #now we have identified neighbour pointing furthest away in input space
-#         #take mean and produce new neuron
-        
-#         ##must find mutual neighbours
-#         neighbour_neighbours = network.neighbors(n1)
-        
-#         ##mutual neighbours
-#         mutual_neighbours = [n for n in error_unit_neighbours if n in neighbour_neighbours]
-        
-#         ##second furthest node
-#         n2 = furthest_neuron(network, error_unit, mutual_neighbours)
-        
-#         #v of n2
-#         v_n2 = network.node[n2]['v']
-        
-#         ##position
-#         network.add_node(id)
-        
-#         ##weight    
-#         v = (ve + v_n1 + v_n2) / 3
-#         network.node[id]['v'] = v
-
-#         ##list of closest nodes
-#         ls = []
-#         network.node[id]['ls'] = ls
-
-#         ##error of neuron
-#         e = 0
-#         network.node[id]['e'] = e
-        
-#         ##som for neuron
-#         n = []
-#         network.node[id]['n'] = n
-        
-#         #remove edge from n1 and n2
-#         network.remove_edge(n1, n2)
-        
-#         #connect new node to all nodes that are connected to both neighbours (including error unit)
-#         for neuron in network.nodes():
-#             if network.has_edge(n1, neuron) and network.has_edge(n2, neuron):
-#                 ##add edges
-#                 network.add_edge(neuron, id)
-        
-#         network.add_edge(n1, id)
-#         network.add_edge(n2, id)
 
 ##function to find neuron pointing furthest away in list
 def furthest_neuron(network, error_unit, ls):
@@ -563,13 +438,8 @@ def ghsom(G, lam, eta, sigma, e_0, e_sg, e_en, init, layer):
 #     N = min(num_nodes, 100)
     N = num_nodes
     
-    if layer == 0:
-        ini = 1
-    else:
-        ini = init
-    
     #create som for this neuron
-    network = initialise_network(X, ini)
+    network = initialise_network(X, init)
     
     ##inital training phase
     
@@ -620,10 +490,7 @@ def ghsom(G, lam, eta, sigma, e_0, e_sg, e_en, init, layer):
         e = network.node[network.nodes()[i]]['e']
         
         #check error
-        if (e > e_en * e_0 and len(ls) > MIN_EXPANSION_SIZE and num_deleted_neurons < 3) or e_0 == np.inf:
-
-            if e_0 == np.inf:
-                e_0 = e
+        if (e > e_en * e_0 and len(ls) > MIN_EXPANSION_SIZE and num_deleted_neurons < 3):
         
             #subgraph
             H = G.subgraph(ls)
@@ -843,31 +710,72 @@ def main_no_labels(params, gml_filename, init=1, lam=10000):
     
     #start layer
     layer = 0
+    
+    X = get_embedding(G)
+    
+    m = np.mean(X, axis=0)
+    MQE_0 = np.mean([np.linalg.norm(x - m) for x in X])
 
     #run ghsom algorithm
     network, MQE = ghsom(G, lam, params['eta'],
-                         params['sigma'], np.inf, params['e_sg'], params['e_en'], init, layer)
+                         params['sigma'], MQE_0, params['e_sg'], params['e_en'], init, layer)
     
-        
-    n, d = network.nodes(data=True)[0]
-    
-    return G, d['n']
+    return G, network
 
 
-# In[8]:
+# In[22]:
 
 params = {'eta': 0.0001,
          'sigma': 1,
           'e_sg': 0.8,
-         'e_en': 0.1}
+         'e_en': 0.8}
 
 
-# In[9]:
+# In[23]:
 
-get_ipython().run_cell_magic(u'time', u'', u'G, network = main_no_labels(params=params, gml_filename="embedded_yeast_uetz.gml", lam=1000)')
+# %%time 
+get_ipython().magic(u'prun G, networks = main_no_labels(params=params, gml_filename="embedded_yeast_uetz.gml", lam=10000)')
+
+
+# In[18]:
+
+def train_1(x, v):
+    
+    for i in range(10000):
+        
+        v += np.array([0.0001]) * x - v
+        
+    return v
+
+
+# In[10]:
+
+x = np.zeros(10)
+
+
+# In[11]:
+
+x
+
+
+# In[16]:
+
+v = np.random.uniform(size=(10, 10))
+
+
+# In[17]:
+
+v
+
+
+# In[20]:
+
+get_ipython().magic(u'timeit train_1(x, v)')
 
 
 # In[ ]:
 
-
+def train_2(x, v):
+    
+    return np.array([v])
 
