@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[21]:
+# In[5]:
 
 from __future__ import division
 
@@ -72,7 +72,7 @@ def initialise_network(X, num_neurons):
 
 
 # function to train SOM on given graph
-def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target):
+def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target, num_deleted_neurons):
     
     #initial learning rate
     eta = eta_0
@@ -103,8 +103,8 @@ def train_network(X, network, num_epochs, eta_0, sigma_0, N, layer, MQE, target)
         # drop neighbourhood
         sigma = sigma_0 * np.exp(-2 * sigma_0 * e / num_epochs);
         
-        stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, network size: {}, MQE: {}, target: {}".format(layer,
-                        e, num_epochs, len(network), len(X), MQE, target) + " " * 20)
+        stdout.write("\rLayer: {}, training epoch: {}/{}, size of map: {}, network size: {}, MQE: {}, target: {}, number of deleted neurons: {}".format(layer,
+                        e, num_epochs, len(network), len(X), MQE, target, num_deleted_neurons) + " " * 20)
 
 # winning neuron
 def winning_neuron(x, network):
@@ -313,19 +313,19 @@ def identify_error_unit(network):
     #return id of unit with maximum error
     return error_node
 
-def get_vector(node):
+# def get_vector(node):
     
-    d = 0
+#     d = 0
     
-    while 'embedding'+str(d) in node:
-        d += 1
+#     while 'embedding'+str(d) in node:
+#         d += 1
     
-    v = np.zeros(d)
+#     v = np.zeros(d)
     
-    for i in range(d):
-        v[i] = node['embedding{}'.format(i)]
+#     for i in range(d):
+#         v[i] = node['embedding{}'.format(i)]
         
-    return v
+#     return v
 
 def expand_network(G, network, error_unit):
     
@@ -337,9 +337,9 @@ def expand_network(G, network, error_unit):
     #v goes to random vector in range of error unit
     ls = network.node[error_unit]['ls']
     r = np.random.randint(len(ls))
-    node = G.node[ls[r]]
-    v = get_vector(node)
-    network.node[id]['v'] = v
+#     node = G.node[ls[r]]
+#     v = get_vector(node)
+    network.node[id]['v'] = G.node[ls[r]]["embedding"]
     
     ##list of closest nodes
     ls = []
@@ -450,7 +450,7 @@ def ghsom(G, lam, eta, sigma, e_0, e_sg, e_en, init, layer):
     num_deleted_neurons = 0
     
     #train for lam epochs
-    train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0)
+    train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0, num_deleted_neurons)
 
     #classify nodes
     assign_nodes(G, X, network, layer)
@@ -466,12 +466,11 @@ def ghsom(G, lam, eta, sigma, e_0, e_sg, e_en, init, layer):
         error_unit = identify_error_unit(network)
         
         #expand network
-#         expand_network(network, error_unit)
         expand_network(G, network, error_unit)
         
-        #train for l epochs
-        train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0)
-
+        #train for lam epochs
+        train_network(X, network, lam, eta, sigma, N, layer, MQE, e_sg * e_0, num_deleted_neurons)
+        
         #classify nodes
         assign_nodes(G, X, network, layer)
 
@@ -479,7 +478,9 @@ def ghsom(G, lam, eta, sigma, e_0, e_sg, e_en, init, layer):
         MQE, num_deleted_neurons = update_errors(network, num_deleted_neurons)
     
     #recalculate error after neuron expansion
-    MQE = 0
+#     MQE = 0
+
+    print "growth terminated, MQE: {}, target: {}, number of deleted neurons: {}".format(MQE, e_0 * e_sg, num_deleted_neurons)
     
     ##neuron expansion phase
     #iterate thorugh all neruons and find neurons with error great enough to expand
@@ -503,10 +504,10 @@ def ghsom(G, lam, eta, sigma, e_0, e_sg, e_en, init, layer):
             network.node[network.nodes()[i]]['n'] = n
             
         #increase overall network error
-        MQE += e
+#         MQE += e
     
     #mean MQE
-    MQE /= nx.number_of_nodes(network)
+#     MQE /= nx.number_of_nodes(network)
     
     #return network
     return network, MQE
@@ -519,7 +520,7 @@ def unassign_all_nodes(G, labels):
 
     for l in range(num_layers):
 
-        nx.set_node_attributes(G, 'community'+str(l), 'unassigned')
+        nx.set_node_attributes(G, "assigned_community_layer_{}".format(l), 'unassigned')
 
 ##function to recursively label nodes in graph
 def label_graph(G, network, layer, neuron_count):
@@ -530,7 +531,7 @@ def label_graph(G, network, layer, neuron_count):
         l = network.node[i]['ls']
         
         for node in l:
-            G.node[node]['community'+str(layer)] = neuron_count[layer]
+            G.node[node]["assigned_community_layer_{}".format(layer)] = neuron_count[layer]
             
         n = network.node[i]['n']
             
@@ -559,17 +560,20 @@ def mutual_information(G, labels):
         actual_community = nx.get_node_attributes(G, labels[num_layers - i - 1])
 
         #predicted first layer community
-        predicted_community = nx.get_node_attributes(G, 'community'+str(i + 1))
+        predicted_community = nx.get_node_attributes(G, "assigned_community_layer_{}".format(i))
 
         #only retrieve labels for assigned nodes
-        labels_true = [v for k,v in actual_community.items() if k in predicted_community]
-        labels_pred = [v for k,v in predicted_community.items() if k in actual_community]
+        labels_true = [v for k, v in actual_community.items()]
+        labels_pred = [v for k, v in predicted_community.items()]
         
-        if len(labels_pred) == 0:
-            continue
+        print labels_true
+        print labels_pred
+        
+#         if len(labels_pred) == 0:
+#             continue
             
         #mutual information to score classifcation -- scale by number of assigned nodes out of all nodes
-        score = met.normalized_mutual_info_score(labels_true, labels_pred) * len(labels_pred) / len(actual_community)
+        score = met.normalized_mutual_info_score(labels_true, labels_pred)
         scores[i] = score
     
     #return
@@ -579,23 +583,25 @@ def mutual_information(G, labels):
 ## get embedding
 def get_embedding(G):
     
-    #get number of niodes in the graph
-    num_nodes = nx.number_of_nodes(G)
+#     #get number of niodes in the graph
+#     num_nodes = nx.number_of_nodes(G)
     
-    #dimension of embedding
-    d = 0
+#     #dimension of embedding
+#     d = 0
     
-    while 'embedding'+str(d) in G.node[G.nodes()[0]]:
-        d += 1
+#     while 'embedding'+str(d) in G.node[G.nodes()[0]]:
+#         d += 1
     
-    #initialise embedding
-    X = np.zeros((num_nodes, d))
+#     #initialise embedding
+#     X = np.zeros((num_nodes, d))
     
-    for i in range(num_nodes):
-        for j in range(d):
-            X[i,j] = G.node[G.nodes()[i]]['embedding'+str(j)]
+#     for i in range(num_nodes):
+#         for j in range(d):
+#             X[i,j] = G.node[G.nodes()[i]]['embedding'+str(j)]
     
-    return X
+#     return X
+
+    return np.array([v for k, v in nx.get_node_attributes(G, "embedding").items()])
 
 def modularity(G, H):
     
@@ -623,12 +629,12 @@ def visualise_graph(G, colours, layer):
     pos = nx.spring_layout(G)
     
     #attributes in this graph
-    attributes = np.unique([v for k,v in nx.get_node_attributes(G, 'community'+str(layer)).items()])
+    attributes = np.unique([v for k,v in nx.get_node_attributes(G, "assigned_community_layer_{}".format(layer)).items()])
 
     # draw nodes -- colouring by cluster
     for i in range(min(len(colours), len(attributes))):
        
-        node_list = [n for n in G.nodes() if G.node[n]['community'+str(layer)] == attributes[i]]
+        node_list = [n for n in G.nodes() if G.node[n]["assigned_community_layer_{}".format(layer)] == attributes[i]]
         colour = [colours[i] for n in range(len(node_list))]
         
         nx.draw_networkx_nodes(G, pos, nodelist=node_list, node_color=colour)
@@ -674,39 +680,42 @@ def visualise_network(network, colours, layer):
     plt.show()
 
 ###evaluate fitness
-def fitness(eta, sigma, e_sg, e_en, gml_filename, labels, init, lam):
+def fitness(eta, sigma, e_sg, e_en, filename, labels, init, lam):
     
-    G = nx.read_gml(gml_filename)
+    G = nx.read_gpickle(filename)
     labels = labels.split(',')
+    
+    X = get_embedding(G)
+    
+    m = np.mean(X, axis=0)
+    MQE_0 = np.mean([np.linalg.norm(x - m) for x in X])
 
     #start layer
     layer = 0
     
     #run ghsom algorithm
-    network, MQE = ghsom(G, lam, eta, sigma, np.inf, e_sg, e_en, init, layer)
+    network, MQE = ghsom(G, lam, eta, sigma, MQE_0, e_sg, e_en, init, layer)
 
     #label graph
-    neurons = np.zeros(MAX_DEPTH + 1, dtype=np.int)
+    neurons = np.zeros(10, dtype=np.int)
     unassign_all_nodes(G, labels)
     label_graph(G, network, layer, neurons)
 
     ##calculate error
     mi_score = mutual_information(G, labels)
-        
-    n, d = network.nodes(data=True)[0]
     
-    num_communities_detected = len(d['n'].nodes())
+    num_communities_detected = len(network)
     
-    return mi_score, num_communities_detected
+    return G, mi_score, num_communities_detected
 
-def main(params, gml_filename, labels, init=1, lam=10000):
+def main(params, filename, labels, init=1, lam=10000):
 
     return fitness(params['eta'], params['sigma'],
-                   params['e_sg'], params['e_en'], gml_filename, labels, init, lam)
+                   params['e_sg'], params['e_en'], filename, labels, init, lam)
 
-def main_no_labels(params, gml_filename, init=1, lam=10000):
+def main_no_labels(params, filename, init=1, lam=10000):
     
-    G = nx.read_gml(gml_filename)
+    G = nx.read_gpickle(filename)
     
     #start layer
     layer = 0
@@ -723,59 +732,54 @@ def main_no_labels(params, gml_filename, init=1, lam=10000):
     return G, network
 
 
-# In[22]:
+# In[1]:
 
-params = {'eta': 0.0001,
-         'sigma': 1,
-          'e_sg': 0.8,
-         'e_en': 0.8}
+# params = {'eta': 0.001,
+#          'sigma': 1,
+#           'e_sg': 0.4,
+#          'e_en': 1.0}
 
 
-# In[23]:
+# In[2]:
 
 # %%time 
-get_ipython().magic(u'prun G, networks = main_no_labels(params=params, gml_filename="embedded_yeast_uetz.gml", lam=10000)')
+# G, mi_score, num_communities_detected = main(params=params, 
+#             filename="embedded_benchmark.gpickle", labels="firstlevelcommunity", lam=1000)
 
 
-# In[18]:
+# In[3]:
 
-def train_1(x, v):
-    
-    for i in range(10000):
-        
-        v += np.array([0.0001]) * x - v
-        
-    return v
+# mi_score
 
 
-# In[10]:
+# In[4]:
 
-x = np.zeros(10)
+# colours = np.random.rand(num_communities_detected, 3)
+# visualise_graph(G, colours, 0)
+
+
+# In[7]:
+
+G = nx.read_gpickle("embedded_yeast_reactome.gpickle")
 
 
 # In[11]:
 
-x
+X = get_embedding(G)
 
 
-# In[16]:
+# In[12]:
 
-v = np.random.uniform(size=(10, 10))
-
-
-# In[17]:
-
-v
+m = np.mean(X, axis=0)
+MQE_0 = np.mean([np.linalg.norm(x - m) for x in X])
 
 
-# In[20]:
+# In[14]:
 
-get_ipython().magic(u'timeit train_1(x, v)')
+MQE_0 * 0.3
 
 
 # In[ ]:
 
-def train_2(x, v):
-    
-    return np.array([v])
+
 

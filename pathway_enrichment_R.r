@@ -2,19 +2,22 @@
 library(ReactomePA)
 library(org.Sc.sgd.db)
 library(clusterProfiler)
+library(GOSim)
+library(topGO)
 
 file <- "yeast_reactome"
 
-# ont <- "BP"
-e_sg <- 0.3
-e_en <- 0.1
+ont <- "BP"
+e_sg <- 0.7
+e_en <- 0.6
 
 db <- org.Sc.sgd.db
 # mapping <- "org.Sc.sgd.db"
 # ID <- "ENSEMBL"
 
 ##load all community gene lists
-setwd(sprintf("/home/david/Documents/ghsom/%s_hierarchy_communities_%s_%s", file, e_sg, e_en))
+setwd(sprintf("/home/david/Documents/ghsom/hierarchical_exploration/%s_hierarchy_communities_%s_%s", file, e_sg, e_en))
+# setwd(sprintf("/home/david/Desktop/%s_hierarchy_communities_%s", file, e_sg))
 
 generateMap <- function(filename){
     map <- as.matrix(read.csv(filename, sep=",", header = F))
@@ -42,7 +45,7 @@ shortestPaths <- sapply(shortestPathFiles, generateMap)
 names(shortestPaths) <- sapply(names(shortestPaths), function(name) strsplit(name, "_")[[1]][[1]])
 
 #communitiy assignemtns
-assignments <- as.matrix(read.csv("assignment_matrix.csv", sep=",", header=F, colClasses="character"))
+assignments <- as.matrix(read.csv("assignment_matrix.csv", sep=",", header=F, row.names=1, colClasses="character"))
 assignments[assignments == ""] <- NA 
 rownames(assignments) <- allGenes
 colnames <- sapply(1:ncol(assignments), function(i) as.character(i - 1))
@@ -59,6 +62,8 @@ allGenesInDB <- allGenesInDB[!is.na(allGenesInDB)]
 communities <- unique(as.character(assignments))
 communities <- communities[communities != ""]
 communities <- sort(communities)
+
+assignments
 
 getDepth <- function(com) {
     return(which(apply(assignments, 2, function(i) any(i == com))))
@@ -101,9 +106,7 @@ getNeighbours <- function(com){
 
 genesInCommunities <- sapply(communities, function(i) getGenes(i))
 
-communities
-
-length(communities)
+genesInCommunities
 
 lengths(genesInCommunities)
 
@@ -111,15 +114,20 @@ enrichmentResults <- sapply(genesInCommunities,
                             function (i) enrichPathway(gene = i, universe = allGenesInDB, organism = "yeast"))
 names(enrichmentResults) <- communities
 
-x <- enrichmentResults[["01-05"]]
+sapply(enrichmentResults, function(i) nrow(as.data.frame(i)))
 
-nrow(as.data.frame(x))
+x  <- enrichmentResults[["01-02"]]
+head(as.data.frame(x))
 
-barplot(x, showCategory=10, title = "Top Enriched Pathways")
+# x <- enrichmentResults[["01-05"]]
 
-dotplot(x, showCategory=15)
+# nrow(as.data.frame(x))
 
-enrichMap(x, layout=igraph::layout.kamada.kawai, vertex.label.cex = 1)
+# barplot(x, showCategory=10, title = "Top Enriched Pathways")
+
+# dotplot(x, showCategory=15)
+
+# enrichMap(x, layout=igraph::layout.kamada.kawai, vertex.label.cex = 1)
 
 numbersOfEnrichedPathways <- sapply(enrichmentResults, function(i) nrow(as.data.frame(i)))
 enrichedCommunities <- genesInCommunities[numbersOfEnrichedPathways > 0]
@@ -158,7 +166,23 @@ plotPathwayEnrichments <- function(community){
 
 sapply(communities, plotPathwayEnrichments)
 
-viewPathway(pathName = "Nonsense Mediated Decay (NMD) enhanced by the Exon Junction Complex (EJC)", 
-            organism = "yeast", readable = F)
+# viewPathway(pathName = "Nonsense Mediated Decay (NMD) enhanced by the Exon Junction Complex (EJC)", 
+#             organism = "yeast", readable = F)
+
+setOntology(ont, loadIC=TRUE)
+setEvidenceLevel(evidences="all", organism=org.Sc.sgdORGANISM, gomap=org.Sc.sgdGO)
+
+allGenesORF <- keys(db)
+
+
+GOenrichmentResults <- sapply(genesInCommunities, function(genesOfInterest) {
+    
+    conversionTable <- select(db, genesOfInterest, "ORF", "ENTREZID")
+    
+    GOenrichment(conversionTable$ORF, allGenesORF, cutoff=0.05, method="weight01")
+}
+)
+
+rownames(GOenrichmentResults) <- c("terms", "p-values", "genes")
 
 

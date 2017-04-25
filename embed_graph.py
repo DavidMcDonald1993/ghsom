@@ -1,72 +1,56 @@
 
 # coding: utf-8
 
-# In[19]:
+# In[18]:
 
 import numpy as np
 import networkx as nx
-import som_functions as som
-import math
-import sklearn.metrics as met
-import sklearn.manifold as man
-from time import time
 
-# ##floyds embedding
-# def floyd_embedding(G):
+from Queue import Queue
+from threading import Thread
+from threading import current_thread
+
+from sklearn.manifold import MDS
     
-#     n = len(G)
-    
-#     fl = nx.floyd_warshall(G)
-    
-#     #intitialise distance matrix
-#     D = np.zeros((n, n))
-    
-#     #find closest k neighbours
-#     for i in range(n):
-#         n1 = G.nodes()[i]
-#         for j in range(n):
-#             n2 = G.nodes()[j]
-#             D[i,j] = fl[n1][n2]
-            
-#     return D
-    
-def custom_mds(distance_dict):
-    
-    #construct distance matrix D from dictionary
-    D = np.array([[distance_dict[i][j] for j in distance_dict[i]] for i in distance_dict])
+# def custom_mds(D, k=5, variance_preserved=0.95):
         
-    #centering matrix
-    n = len(distance_dict)
-    C = np.identity(n) - np.ones((n, n)) / n
-    #similarity matrix
-    K = - 1/2 * np.dot(np.dot(C, D ** 2), C)
+#     #centering matrix
+#     n = len(D)
+#     C = np.identity(n) - np.ones((n, n)) / n
     
-    #eigen decompose K
-    l, U = np.linalg.eigh(K)
+#     #similarity matrix
+#     K = - 0.5 * np.dot(np.dot(C, D ** 2), C)
     
-    ##sort eigenvalues (and eigenvectors) into ascending order
-    idx = l.argsort()[::-1]
-    l = l[idx]
-    U = U[:,idx]
+#     #eigen decompose K
+#     l, U = np.linalg.eigh(K)
     
-    s = sum(l)
+#     ##sort eigenvalues (and eigenvectors) into ascending order
+#     idx = l.argsort()[::-1]
+#     l = l[idx]
+#     U = U[:,idx]
     
-    k = len(l)
-    var = 1
+#     if k < 1:
     
-    while var > 0.95:
-        k -= 1
-        var = sum(l[:k]) / s
+#         s = (l - l[-1]) / (l[0] - l[-1])
+#         print l
+#         print s
+
+#         total = sum(s)
+#         k = 0
+#         var = sum(s[:k]) / total
+#         while var < variance_preserved:
+#             k += 1
+#             var = sum(s[:k]) / total
+        
+#         print "attempting to preserve 95% of variance".format(k)
     
-    k += 1
+#     print "embedding to {} dimensions".format(k)
     
-    #position matrix
-    X = np.dot(U[:,:k], np.diag(l[:k] ** 0.5))
     
-    #link nodes to embedding
-    X = {k: v for k, v in zip(distance_dict, X)}
+#     #position matrix
+#     X = np.dot(U[:,:k], np.diag(l[:k] ** 0.5))
     
-    return X
+#     return X
 
 ##function to generate benchmark graph
 def benchmark_hierarchical_graph(edge_path, c1_path, c2_path):
@@ -125,25 +109,18 @@ def filter_nodes_with_no_embedding(G, D):
     
     for n in G.nodes():
     
-        if n not in D:
+        if n not in D.keys():
             print "{} not in D, removing it from the network".format(n)
             G.remove_node(n)
 
 ##save embedding to graph
 def set_embedding(G, X):
     
-    #get number of niodes in the graph
-#     num_nodes = nx.number_of_nodes(G)
+    embedding = {k: v for k, v in zip(G.nodes(), X)}
     
-    #dimension of embedding
-    d = len(X[G.nodes()[0]])
+    nx.set_node_attributes(G, "embedding", embedding)
     
-    #iterate over a;; the nodes and save their embedding
-    for n in G.nodes():
-        for j in range(d):
-            G.node[n]['embedding{}'.format(j)] = X[n][j]    
-
-def main_hierarchical(network, first_level, second_level):
+def main_hierarchical(network, first_level, second_level, filename):
     
     #import graph from file
     G = benchmark_hierarchical_graph(network, first_level, second_level)
@@ -156,17 +133,24 @@ def main_hierarchical(network, first_level, second_level):
     
     #remove nodes from H with no embedding
     filter_nodes_with_no_embedding(H, D)    
+
+    ##to array
+    D = np.array([[D[i][j] for j in D.keys()] for i in D.keys()])
+
+    k = 10
     
-    #mds
-    X = custom_mds(D) 
+    print "embedding to {} dimensions".format(k)
+
+    mds = MDS(n_components = k, dissimilarity = "precomputed", n_jobs=-1, max_iter=1000)
+    X = mds.fit_transform(D)
     
     #save embedding to nodes of G
     set_embedding(H, X)
     
     #write gml file
-    nx.write_gml(H, 'embedded_network_{}.gml'.format(network.split('_')[0]))
+    nx.write_gpickle(H, filename)
 
-def main_binary(network, first_level, gml_filename):
+def main_binary(network, first_level, filename, k = 5):
     
     #import graph from file
     G = benchmark_graph(network, first_level)
@@ -178,21 +162,30 @@ def main_binary(network, first_level, gml_filename):
     D = nx.floyd_warshall(H)
     
     #remove nodes from H with no embedding
-    filter_nodes_with_no_embedding(H, D)    
+    filter_nodes_with_no_embedding(H, D)   
+    
+    ##to array
+    D = np.array([[D[i][j] for j in D.keys()] for i in D.keys()])
     
     #mds
-    X = custom_mds(D) 
+    X = custom_mds(D, k = k) 
+
+    
+#     print "embedding to {} dimensions".format(k)
+
+#     mds = MDS(n_components = k, dissimilarity = "precomputed", n_jobs=-1, max_iter=10000)
+#     X = mds.fit_transform(D)
     
     #save embedding to nodes of G
     set_embedding(H, X)
     
     #write gml file
-    nx.write_gml(H, gml_filename)
+    nx.write_gpickle(H, filename)
 
-def main(txt, gml_filename, D=None):
+def main(txt, filename, D=None, delimiter="\t", min_k = 1, max_k = 50, eps = 10, k=10):
     
     #import graph from file
-    G = nx.read_edgelist(txt, delimiter="\t")
+    G = nx.read_edgelist(txt, delimiter=delimiter)
     
     #only embed largest subgraph
     H = max(nx.connected_component_subgraphs(G), key=len)
@@ -203,26 +196,94 @@ def main(txt, gml_filename, D=None):
         D = nx.floyd_warshall(H)
     
     #remove nodes from H with no embedding
-    filter_nodes_with_no_embedding(H, D)    
+    filter_nodes_with_no_embedding(H, D) 
     
-    #mds
-    X = custom_mds(D)   
+    ##to array
+    D = np.array([[D[i][j] for j in D.keys()] for i in D.keys()])
+    
+    print "computed distance matrix"
+    
+#     #validation testing for best dimension
+#     stresses = np.array([])
+    
+#     for k in [10, 20, 100, 250, 500, 1000]:
+        
+#         mds = MDS(n_components = k, dissimilarity = "precomputed", n_jobs=-1, max_iter=10000)
+#         mds.fit(D)
+
+#         stress = mds.stress_
+#         X = mds.embedding_
+
+#         stresses = np.append(stresses, stress)
+        
+#         print "k={}, stress={}".format(k, stress)
+        
+#         if len(stresses) > 1:
+#             gradient = np.gradient(stresses, 5)[-1]
+
+#             print "k={}, stress={}, gradient={}".format(k, stress, gradient)
+
+#             if np.abs(gradient) < eps:
+#                 print "BREAK"
+#                 break
+    
+    mds = MDS(n_components = k, dissimilarity = "precomputed", n_jobs=-1, max_iter=10000)
+    mds.fit(D)
+
+    stress = mds.stress_
+    X = mds.embedding_
+    
     
     #save embedding to nodes of G
     set_embedding(H, X)
-    
+
     #write gml file
-    nx.write_gml(H, gml_filename)
+    nx.write_gpickle(H, filename)
+    
+    return k, stress, X
 
 
-# In[20]:
+# In[7]:
 
-get_ipython().system(u'ls | grep txt')
+G = nx.read_edgelist("reactome_edgelist.txt")
+H = max(nx.connected_component_subgraphs(G), key=len)
+D = nx.floyd_warshall(H)
+
+
+# In[19]:
+
+stresses = main("reactome_edgelist.txt", "embedded_yeast_reactome.gpickle", D = D, k = 20)
+
+
+# In[ ]:
+
+stresses
 
 
 # In[22]:
 
-main("reactome_edgelist.txt", "embedded_yeast_reactome.gml")
+import matplotlib.pyplot as plt
+
+
+# In[24]:
+
+plt.plot(stresses)
+plt.show()
+
+
+# In[4]:
+
+main_binary("benchmarks/network.dat", "benchmarks/community.dat", "embedded_benchmark.gpickle", k = 10)
+
+
+# In[9]:
+
+G = nx.read_gpickle("embedded_yeast_reactome.gpickle")
+
+
+# In[10]:
+
+G.nodes(data=True)
 
 
 # In[ ]:

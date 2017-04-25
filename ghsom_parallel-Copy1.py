@@ -1,6 +1,11 @@
 
+# coding: utf-8
+
+# In[1]:
+
 from __future__ import division
-import sys
+
+from sys import stdout
 
 import numpy as np
 import networkx as nx
@@ -18,22 +23,93 @@ from threading import current_thread
 MIN_EXPANSION_SIZE = 10
 MAX_DELETED_NEURONS = 3
 
+#########################################################################################################################
+
+##function to visualise graph
+def visualise_graph(G, colours, layer):
+        
+    ## create new figure for graph plot
+    fig, ax = plt.subplots()
+    
+    # graph layout
+    pos = nx.spring_layout(G)
+    
+    #attributes in this graph
+    attributes = np.unique([v for k, v in nx.get_node_attributes(G, "assigned_community_layer_{}".format(layer)).items()])
+
+    # draw nodes -- colouring by cluster
+    for i in range(min(len(colours), len(attributes))):
+       
+        node_list = [n for n in G.nodes() if G.node[n]["assigned_community_layer_{}".format(layer)] == attributes[i]]
+        colour = [colours[i] for n in range(len(node_list))]
+        
+        nx.draw_networkx_nodes(G, pos, nodelist=node_list, node_color=colour)
+        
+    #draw edges
+    nx.draw_networkx_edges(G, pos)
+
+    # draw labels
+    nx.draw_networkx_labels(G, pos)
+    
+    #title of plot
+    plt.title('Nodes coloured by cluster, layer: {}'.format(layer))
+
+    #show plot
+    plt.show()
+
+## visualise graph based on network clusters
+def visualise_network(network, colours, layer):
+    
+    #num neurons in lattice
+    num_neurons = len(network)
+
+    ##create new figure for lattice plot
+    fig, ax = plt.subplots()
+    
+    # graph layout
+    pos = nx.spring_layout(network)
+
+    # draw nodes -- colouring by cluster
+    for i in range(len(colours)):
+        nx.draw_networkx_nodes(network, pos, nodelist = [network.nodes()[i]], node_color = colours[i])
+
+    #draw edges
+    nx.draw_networkx_edges(network, pos)
+
+    # draw labels
+    nx.draw_networkx_labels(network, pos)
+    
+    #label axes
+    plt.title('Neurons in lattice, layer: '+str(layer))
+    
+    #show lattice plot
+    plt.show()
+
 ##########################################################################################################################
 
 #function to generate real valued som for graph input
-def initialise_network(ID, X):
+#three initial nodes
+def initialise_network(ID, X, starting_nodes=3):
     
     #network will be a one dimensional list
     network = nx.Graph(ID = ID)
     
     #initialise a network with just one neuron
-    network.add_node(1)
+    network.add_nodes_from(range(1, starting_nodes + 1))
     
-    #id of node
-    network.node[1]["ID"] = "{}-01".format(ID)
+    #id of nodes
+    for n in network.nodes():
+        network.node[n]["ID"] = "{}-{}".format(ID, str(n).zfill(2))
+        
+    #connect nodes     
+    for i in range(1, starting_nodes + 1):
+        for j in range(i + 1, starting_nodes + 1):
+            network.add_edge(i, j)
     
     #assign a random vector in X to be the weight
-    V = np.expand_dims(X[np.random.randint(len(X))])
+    V = X[np.random.randint(len(X), size=starting_nodes)]
+    
+#     print V
     
     #return network
     return network, V
@@ -42,13 +118,13 @@ def initialise_network(ID, X):
 
 def precompute_sigmas(sigma, num_epochs):
     
-    return np.array([sigma * np.exp(-np.array([2]) * sigma * e / np.array([num_epochs])) 
-                     for e in np.array(range(num_epochs))])
+    return np.array([sigma * np.exp(-2 * sigma * e / num_epochs)
+                     for e in range(num_epochs)])
 
 ##########################################################################################################################
 ##TODO
 # function to train SOM on given graph
-def train_network(X, network, V, num_epochs, eta_0, pre_computed_sigmas):
+def train_network(X, network, V, num_epochs, eta_0, precomputed_sigmas):
     
     #initial learning rate
     eta = eta_0
@@ -57,12 +133,16 @@ def train_network(X, network, V, num_epochs, eta_0, pre_computed_sigmas):
     training_patterns = range(len(X))
     
     #shortest path matrix
-    shortest_path = nx.floyd_warshall_numpy(network)
+    shortest_path = np.array(nx.floyd_warshall_numpy(network))
+#     print "TRAINING"
+#     print V
     
     for e in range(num_epochs):
         
         #shuffle nodes
         np.random.shuffle(training_patterns)
+        
+        sigma = precomputed_sigmas[e]
         
         # iterate through N nodes of graph
         for i in training_patterns:
@@ -74,8 +154,15 @@ def train_network(X, network, V, num_epochs, eta_0, pre_computed_sigmas):
             closest_neuron = winning_neuron(x, V)
             
             # update weights
-            V = update_weights(x, V, closest_neuron, shortest_path, eta, pre_computed_sigmas[e])
+#             V = update_weights(x, V, closest_neuron, shortest_path[closest_neuron], eta, pre_computed_sigmas[e])
             
+            #weight update (vectorised)
+            V += np.dot(np.diag(eta * np.exp(- shortest_path[closest_neuron] ** 2 / (2 * sigma * sigma))), (x - V))
+            
+#         stdout.write("\rTraining epoch: {}/{}".format(e, num_epochs))
+            
+#     print V
+#     print
     return V
         
 ##########################################################################################################################
@@ -90,10 +177,10 @@ def winning_neuron(x, V):
 ##########################################################################################################################
 
 # function to update weights
-def update_weights(x, V, winning_neuron, eta, sigma):
+def update_weights(x, V, winning_neuron, shortest_path_length, eta, sigma):
     
     #weight update (vectorised)
-    V += np.dot(np.diag(eta * np.exp(- shortest_path_length[winning_neuron] ** 2 / (np.array([2]) * sigma ** 2))), 
+    V += np.dot(np.diag(eta * np.exp(- shortest_path_length ** 2 / (2 * sigma ** 2))), 
                       (x - V))
     
     return V
@@ -112,8 +199,14 @@ def assign_nodes(names, X, network, V):
     #index of column giving minimum distance
     arg_min_distances = np.argmin(distances, axis=1)
     
+#     print "ARG MIN DISTANCES"
+#     print arg_min_distances
+    
     #nodes corresponding to minimum index (of length len(X))
     minimum_nodes = np.array([network.nodes()[n] for n in arg_min_distances])
+    
+#     print "MINIMUM NODES"
+#     print minimum_nodes
     
     #list of neurons with no assignments
     empty_neurons = np.array([n for n in network.nodes() if n not in minimum_nodes])
@@ -124,8 +217,8 @@ def assign_nodes(names, X, network, V):
 
         #neighbours of deleted neurons
         neighbour_lists = np.array([network.neighbors(n) for n in empty_neurons])
-
-        print "DELETING: {}".format(empty_neurons)
+        
+#         print "DELETING NODES: {}".format(empty_neurons)
         
         #remove the nodes
         network.remove_nodes_from(empty_neurons)
@@ -145,13 +238,22 @@ def assign_nodes(names, X, network, V):
     #array of errors
     errors = np.array([np.mean(min_distances[minimum_nodes == n]) for n in network.nodes()])
     
+#     print "ERRORS"
+#     print errors
+    
     #compute MQE
     MQE = np.mean(errors)
     
-    print "MQE={}".format(MQE)
+    print "MQE={}, size of map={}".format(MQE, len(network))
     
     ##array of assignments
     assignments = np.array([np.array([names[i] for i in np.where(minimum_nodes == n)[0]]) for n in network.nodes()])
+    
+#     print "NAMES"
+#     print names
+    
+#     print "ASSIGNMENTS"
+#     print assignments
     
     #zip zith nodes
     errors = {n: e for n, e in zip(network.nodes(), errors)}
@@ -174,9 +276,7 @@ def compute_euclidean_distances(network, V):
 ######################################################################################################################### 
 
 
-def connect_components(network, neighbour_list):
-    
-    print "NODES DELETED CONNECTING COMPONENTS"
+def connect_components(network, neighbour_list, computed_neuron_distances):
     
     sub_network = network.subgraph(neighbour_list)
     
@@ -198,9 +298,6 @@ def connect_components(network, neighbour_list):
             
             network.add_edge(connected_component_1[min_n1], 
                             connected_component_2[min_n2])
-            
-            print "CONNECTED NEURONS: {} and {}".format(connected_component_1[min_n1], 
-                            connected_component_2[min_n2])
 
 ##########################################################################################################################
             
@@ -221,25 +318,25 @@ def expand_network(ID, named_X, network, V, error_unit):
     v = named_X[ls[r]]
     
     #zip nodes and distances
-    distances = zip(network.nodes(), np.linalg.norm(V - v))
+    distances = zip(network.nodes(), np.linalg.norm(V - v, axis=1))
         
     #identify neighbour pointing closet
     error_unit_neighbours = network.neighbors(error_unit)
     
     
     #id of new node
-    id = max(network) + 1
+    new_node = max(network) + 1
     
     #add new node to map
-    network.add_node(id)
+    network.add_node(new_node)
     
     ##id
-    network.node[id]["ID"] = "{}-{}".format(ID, str(id).zfill(2))
+    network.node[new_node]["ID"] = "{}-{}".format(ID, str(new_node).zfill(2))
     
     #add edges to map
     
     #connect error unit and new node
-    network.add_edge(error_unit, id)
+    network.add_edge(error_unit, new_node)
     
     if len(error_unit_neighbours) > 0:
         
@@ -248,10 +345,12 @@ def expand_network(ID, named_X, network, V, error_unit):
         closest_neighbour = min(distances, key=distances.get)
         
         #connect to error unit and closest neighbour
-        network.add_edge(closest_neighbour, id)
+        network.add_edge(closest_neighbour, new_node)
         
     #add v to V
-    np.vstack([V, v])    
+    V = np.vstack([V, v])   
+    
+#     print V
     
     return V
         
@@ -260,6 +359,8 @@ def expand_network(ID, named_X, network, V, error_unit):
 
 ##GHSOM algorithm
 def ghsom(ID, named_X, lam, eta, sigma, e_0, e_sg, e_en, q):
+    
+    print "MQE_0={}, growth target={}".format(e_0, e_0 * e_sg)
     
     #separate names and matrix of node embedding
     names, X = zip(*named_X.items())
@@ -289,17 +390,17 @@ def ghsom(ID, named_X, lam, eta, sigma, e_0, e_sg, e_en, q):
         V = expand_network(ID, named_X, network, V, error_unit)
         
         #train for lam epochs
-        v = train_network(X, network, V, lam, eta, precomputed_sigmas)
+        V = train_network(X, network, V, lam, eta, precomputed_sigmas)
 
         #calculate mean network error
         MQE, deleted_neurons, V = assign_nodes(names, X, network, V)
         num_deleted_neurons += deleted_neurons
         
-        
+    print "growth terminated, MQE: {}, target: {}, number of deleted neurons: {}".format(MQE, e_0 * e_sg, num_deleted_neurons)
         
     ##neuron expansion phase
     #iterate thorugh all neruons and find neurons with error great enough to expand
-    for i, d in network.nodes(data=True):
+    for _, d in network.nodes(data=True):
         
         #unpack
         node_id = d["ID"]
@@ -309,14 +410,14 @@ def ghsom(ID, named_X, lam, eta, sigma, e_0, e_sg, e_en, q):
         #check error
         if (e > e_en * e_0 and len(ls) > MIN_EXPANSION_SIZE and num_deleted_neurons < MAX_DELETED_NEURONS):
             
-            id = "{}-{}".format(ID, node_id) 
+#             id = "{}-{}".format(ID, node_id) 
                 
             sub_X = {k: named_X[k] for k in ls}
             
-            print "submitted job: ID={}, e={}".format(id, e)
+            print "submitted job: ID={}, e={}, number of nodes={}".format(node_id, e, len(ls))
             
             #add these parameters to the queue
-            q.put((id, sub_X, lam, eta, sigma, e, e_sg, e_en))
+            q.put((node_id, sub_X, lam, eta, sigma, e, e_sg, e_en))
     
     #return network
     return network, MQE
@@ -348,31 +449,35 @@ def NMI_one_layer(G, label, layer):
     
     #predicted communitiy for this layer
     predicted_community_labels = np.array([v for k, v in nx.get_node_attributes(G, 
-                                                                                "assigned_community_layer_{}".format(layer))])
+         "assigned_community_layer_{}".format(layer)).items()])
 
+    print actual_community_labels
+    print predicted_community_labels
+    
     return met.normalized_mutual_info_score(actual_community_labels, predicted_community_labels)
 
 def NMI_all_layers(G, labels):
     
-    return np.array([NMI_one_layer(G, labels[i], i) for i in range(len(labels))])
+    return np.array([NMI_one_layer(G, labels[i], i + 1) for i in range(len(labels))])
 
 ##########################################################################################################################
 
 ## get embedding TERRIBLE but staying
 def get_embedding(G):
     
-    #get number of niodes in the graph
-    num_nodes = nx.number_of_nodes(G)
+#     #get number of niodes in the graph
+#     num_nodes = nx.number_of_nodes(G)
     
-    #dimension of embedding
-    dim = 0
-    while 'embedding'+str(dim) in G.node[G.nodes()[0]]:
-        dim += 1
+#     #dimension of embedding
+#     dim = 0
+#     while 'embedding'+str(dim) in G.node[G.nodes()[0]]:
+#         dim += 1
     
-    #initialise embedding
-    X = np.array([[d["embedding{}".format(j)] for j in range(dim)] for n, d in G.nodes(data=True)])
-    
-    return X
+#     #initialise embedding
+#     X = np.array([[d["embedding{}".format(j)] for j in range(dim)] for n, d in G.nodes(data=True)])
+
+    return np.array([v for k, v in nx.get_node_attributes(G, "embedding").items()])
+
 
 ##########################################################################################################################
 
@@ -397,10 +502,10 @@ def worker(q, networks):
     while True:
         process_job(q, networks)
 
-def main(params, gml_filename, lam=10000, num_threads=1):
+def main(params, filename, lam=10000, num_threads=1):
     
     #network
-    G = nx.read_gml(gml_filename)
+    G = nx.read_gpickle(filename)
     
     #embedding matrix
     X = get_embedding(G)
@@ -443,155 +548,37 @@ def main(params, gml_filename, lam=10000, num_threads=1):
     
     return G, networks
 
-arg_min_distances = [1,1,3,4]
 
-l = range(5)
+# In[68]:
 
-[l[i] for i in range(5) if i in arg_min_distances]
-
-params = {'eta': np.array([0.0001]),
-         'sigma': np.array([1]),
-          'e_sg': np.array([0.8]),
-         'e_en': np.array([0.8])}
-
-# %%time 
-%prun G, networks = main(params=params, gml_filename="embedded_yeast_uetz.gml", num_threads=1)
-
-label_graph(G, networks)
-
-NMI_all_layersll_layers(G, labels=["communityfirstlevel", "communitysecondlevel"])
-
-for id, network, e in networks:
-    
-    print id
-    print network.graph["ID"]
-    print nx.floyd_warshall_numpy(network)
-    print 
-    for n, d in network.nodes(data=True):
-        print d["ID"]
-#         print str(n + 1).zfill(2)
-        print np.array([G.node[node]["label"] for node in d["ls"]])
-        print
-
-%timeit np.array([3]) ** 2
-
-%timeit 3 ** 2
-
-x = np.ones(10)
-
-x
-
-V = np.random.rand(4, 10)
-
-V
-
-%%timeit 
-euclidean_distances(V)
-
-%timeit d1 = np.array([np.linalg.norm(x - v) for v in V])
-
-d1
-
-%timeit d2 = np.linalg.norm(x - V, axis=1)
-
-d2
-
-d2.argmin()
-
-%%timeit 
-np.array([np.random.shuffle(range(100)) for i in range(200)])
-
-np.array([np.random.permutation(range(100)) for i in range(200)]).shape
-
-%%timeit
-patterns = range(100)
-for i in range(200):
-    np.random.shuffle(patterns)
-
-%%timeit
-patterns = range(100)
-for i in range(200):
-    np.random.permutation(patterns)
-
-import networkx as nx
-
-G = nx.karate_club_graph()
-
-nx.floyd_warshall_numpy(G)
-
-for e in np.array(range(1)):
-    print type(e)
-
-X = np.random.uniform(size=(100, 10))
-
-X.shape
-
-V = np.random.uniform(size=(50, 10))
-
-V.shape
-
-v = V[10]
-
-%%timeit
-np.linalg.norm(X - v, axis=1)
-
-%%timeit
-euclidean_distances(X, V)[10]
-
-from sklearn.metrics.pairwise import euclidean_distances
-
-v = np.random.rand(10)
-
-%%timeit
-d = euclidean_distances(X, np.expand_dims(v,axis=0))
-np.squeeze(d)
-
-%%timeit
-np.linalg.norm(X-v, axis=1)
-
-np.expand_dims(v,axis=0)
+# params = {'eta': 0.001,
+#          'sigma': 1,
+#           'e_sg': 0.5,
+#          'e_en': 1.0}
 
 
+# In[72]:
 
-sp.min(d, axis=1).shape
+# G, networks = main(params=params, filename="embedded_benchmark.gpickle", num_threads=5, lam=1000)
 
-import scipy as sp
 
-distances = np.random.uniform(size=(10, 10))
+# In[70]:
 
-arg_min_distances = distances.argmin(axis=1)
+# label_nodes(G, networks)
 
-arg_min_distances
 
-[i in arg_min_distances for i in range(10)]
+# In[73]:
 
-G = nx.karate_club_graph()
+# NMI_all_layers(G, labels=["firstlevelcommunity"])
 
-G.remove_node(0)
 
-for i in range(10):
-    print G.neighbors(5)
+# In[74]:
 
-V = np.random.uniform(size=(10, 2))
+# _, network, _ = networks[0]
+# colours = np.random.rand(len(network), 3)
 
-%timeit np.vstack([V, np.random.rand(2)])
 
-d = np.random.rand(4,4)
+# In[75]:
 
-d
-
-keys = ["one", "two", "three", "four"]
-
-{keys[i]: {keys[j]: d[i,j] for j in range(len(d[i]))} for i in range(len(d))}
-
-nodes = range(10)
-
-distances = np.random.rand(10)
-
-z = zip(nodes, distances)
-
-np.array([v for n, v in z if n in [1,4,5]])
-
-z
-
+# visualise_graph(G=G, colours=colours, layer=1)
 
