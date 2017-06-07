@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[14]:
+# In[1]:
 
 from __future__ import division
 
@@ -20,7 +20,7 @@ from Queue import Queue
 from threading import Thread
 from threading import current_thread
 
-MIN_EXPANSION_SIZE = 10
+MIN_EXPANSION_SIZE = 50
 MAX_DELETED_NEURONS = 3
 
 #########################################################################################################################
@@ -89,6 +89,8 @@ def visualise_network(network, colours, layer):
 
 def initialise_weight(G):
     
+    print "INITIALISE WEIGHT, NUMBER OF NODES: {}, CONNECTED: {}".format(len(G), nx.is_connected(G))
+    
     n = G.nodes()[np.random.randint(len(G))]
     
     neighbours = G.neighbors(n)
@@ -131,17 +133,16 @@ def precompute_sigmas(sigma, num_epochs):
 ##########################################################################################################################
 ##TODO
 # function to train SOM on given graph
-def train_network(G, network, V, num_epochs, eta_0, precomputed_sigmas, 
+def train_network(G, network, V, num_epochs, eta, precomputed_sigmas, 
                   precomputed_graph_shortest_paths, precomputed_graph_shortest_path_lengths):
-    
-    #initial learning rate
-    eta = eta_0
     
     #list if all patterns to visit
     training_patterns = range(len(G))
     
     #shortest path matrix
     shortest_path = np.array(nx.floyd_warshall_numpy(network))
+    
+    net_change = np.zeros(len(network))
     
     for e in range(num_epochs):
         
@@ -160,8 +161,13 @@ def train_network(G, network, V, num_epochs, eta_0, precomputed_sigmas,
             closest_neuron = winning_neuron(x, V, precomputed_graph_shortest_path_lengths)
             
             # update weights
-            V = update_weights(x, V, closest_neuron, shortest_path[closest_neuron], eta, precomputed_sigmas[e],
+            V, deltaV = update_weights(x, V, closest_neuron, shortest_path[closest_neuron], eta, precomputed_sigmas[e],
                               precomputed_graph_shortest_paths, precomputed_graph_shortest_path_lengths)
+            
+            net_change += deltaV
+            
+    print "NET CHANGE AFTER TRAINING"
+    print net_change
 
     return V
         
@@ -193,9 +199,10 @@ def update_weights(x, V, winning_neuron, shortest_path_length, eta, sigma,
     V = np.array([move_along_shortest_path(x, v, deltav, precomputed_graph_shortest_paths,
                                            precomputed_graph_shortest_path_lengths) for v, deltav in zip(V, deltaV)])
     
-    return V
-                                 
-                                 
+    return V, deltaV
+
+##########################################################################################################################
+
 def move_along_shortest_path(x, v, deltaV, precomputed_graph_shortest_paths, 
                              precomputed_graph_shortest_path_lengths):
     
@@ -203,140 +210,186 @@ def move_along_shortest_path(x, v, deltaV, precomputed_graph_shortest_paths,
     vi, vj, beta = v
     beta = np.float(beta)
     
-    # four cases to consider
-    if precomputed_graph_shortest_path_lengths[x][vi] +     beta * precomputed_graph_shortest_path_lengths[vi][vj] <     precomputed_graph_shortest_path_lengths[x][vj] + (1 - beta) * precomputed_graph_shortest_path_lengths[vi][vj]:
+    #weight of edge between vi and vj
+    weight = precomputed_graph_shortest_path_lengths[vi][vj]
+    
+    #check if passing through vi or vj is quicker
+    if precomputed_graph_shortest_path_lengths[x][vi] + beta * weight <     precomputed_graph_shortest_path_lengths[x][vj] + (1 - beta) * weight:
         
-        # moving towards vi
-        #two cases here -- do we stay within (vi,vj) or move to next node?
+        #passing through vi is quicker
+        beta = 1 - beta
+        path = [vj, vi]
+        path.extend(precomputed_graph_shortest_paths[vi][x])
         
-        if deltaV < beta * precomputed_graph_shortest_path_lengths[vi][vj]:
-            
-            # can safely move towards vi
-            new_beta = (beta * precomputed_graph_shortest_path_lengths[vi][vj] - deltaV) /             precomputed_graph_shortest_path_lengths[vi][vj]
-            
-            return vi, vj, new_beta
+    else :
         
-        else:
+        #passing through vj is quicker
+        path = [vi, vj]
+        path.extend(precomputed_graph_shortest_paths[vj][x])
+
+    #move along path until deltaV is less than edge weight
+    for vi, vj in zip(path, path[1:]):
+        
+        #edge weight
+        weight = precomputed_graph_shortest_path_lengths[vi][vj]
+
+        if deltaV <  weight * (1 - beta):
+            return vi, vj, beta + deltaV / weight
+        
+        #decrease deltaV by (1 - beta of edge weight)
+        deltaV -= weight * (1 - beta)
+        beta = 0
+        
+    return x, x, 0
+
+#########################################################################################################################
+                                 
+# def move_along_shortest_path(x, v, deltaV, precomputed_graph_shortest_paths, 
+#                              precomputed_graph_shortest_path_lengths):
+    
+#     #unpack v
+#     vi, vj, beta = v
+#     beta = np.float(beta)
+    
+#     # four cases to consider
+#     if precomputed_graph_shortest_path_lengths[x][vi] + \
+#     beta * precomputed_graph_shortest_path_lengths[vi][vj] < \
+#     precomputed_graph_shortest_path_lengths[x][vj] + \
+#     (1 - beta) * precomputed_graph_shortest_path_lengths[vi][vj]:
+        
+#         # moving towards vi
+#         #two cases here -- do we stay within (vi,vj) or move to next node?
+        
+#         if deltaV < beta * precomputed_graph_shortest_path_lengths[vi][vj]:
             
-            # we are moving towards vi but have passed it -- so now we must adjust vi, vj and beta
+#             # can safely move towards vi
+#             new_beta = (beta * precomputed_graph_shortest_path_lengths[vi][vj] - deltaV) / \
+#             precomputed_graph_shortest_path_lengths[vi][vj]
             
-            # finding new vi and vj
-            # how far past vi have we moved?
-            d = deltaV - beta * precomputed_graph_shortest_path_lengths[vi][vj]
+#             return vi, vj, new_beta
+        
+#         else:
             
-            # next, we will find the next node in the shortest path 
-            path = precomputed_graph_shortest_paths[vi][x]
+#             # we are moving towards vi but have passed it -- so now we must adjust vi, vj and beta
             
-            i = 0;
-            # vj will be second on the shortest path from vi to x
-            new_vi = path[i]
-            new_vj = path[min(i+1, len(path) - 1)]
+#             # finding new vi and vj
+#             # how far past vi have we moved?
+#             d = deltaV - beta * precomputed_graph_shortest_path_lengths[vi][vj]
             
-            # keep moving vi and vj along path until remaining distance to move (d)
-            # is less than dist[new_vi][new_vj]
-            while d > precomputed_graph_shortest_path_lengths[new_vi][new_vj]:
+#             # next, we will find the next node in the shortest path 
+#             path = precomputed_graph_shortest_paths[vi][x]
+            
+#             i = 0;
+#             # vj will be second on the shortest path from vi to x
+#             new_vi = path[i]
+#             new_vj = path[min(i+1, len(path) - 1)]
+            
+#             # keep moving vi and vj along path until remaining distance to move (d)
+#             # is less than dist[new_vi][new_vj]
+#             while d > precomputed_graph_shortest_path_lengths[new_vi][new_vj]:
                 
-                #reached target
-                if new_vi == x or new_vj == x:
+#                 #reached target
+#                 if new_vi == x or new_vj == x:
                     
-                    # set weight to be input vector
+#                     # set weight to be input vector
                     
-                    #set new vi to be input vector
-                    new_vi = x
+#                     #set new vi to be input vector
+#                     new_vi = x
                     
-                    new_vj = x
+#                     new_vj = x
                     
-                    d = 0
+#                     d = 0
                     
-                    break
+#                     break
                 
-                # subtract distance between vi and vj
-                d -= precomputed_graph_shortest_path_lengths[new_vi][new_vj]
+#                 # subtract distance between vi and vj
+#                 d -= precomputed_graph_shortest_path_lengths[new_vi][new_vj]
                 
-                # increment i
-                i += 1
+#                 # increment i
+#                 i += 1
                 
-                # update vi, vj
-                new_vi = path[i]
-                new_vj = path[i+1]
+#                 # update vi, vj
+#                 new_vi = path[i]
+#                 new_vj = path[i+1]
                 
-            # now d < dist[new_vi][new_vj]
+#             # now d < dist[new_vi][new_vj]
             
-            # calculate new beta 
-            #new_beta = (distance_function(new_vi, v) + beta * \
-            #            dist[vi][vj] - move_distance) / distance_function(new_vi, v)
-            new_beta = d / precomputed_graph_shortest_path_lengths[new_vi][new_vj]
+#             # calculate new beta 
+#             #new_beta = (distance_function(new_vi, v) + beta * \
+#             #            dist[vi][vj] - move_distance) / distance_function(new_vi, v)
+#             new_beta = d / precomputed_graph_shortest_path_lengths[new_vi][new_vj]
             
-            return new_vi, new_vj, new_beta
+#             return new_vi, new_vj, new_beta
             
-    else:
+#     else:
 
-        #moving towards vj
-        #two cases here -- do we stay within (vi,vj) or move to next node?
+#         #moving towards vj
+#         #two cases here -- do we stay within (vi,vj) or move to next node?
 
-        if deltaV < (1 - beta) * precomputed_graph_shortest_path_lengths[vi][vj]:
+#         if deltaV < (1 - beta) * precomputed_graph_shortest_path_lengths[vi][vj]:
 
-            #can move safely towards vj
-            new_beta = (beta * precomputed_graph_shortest_path_lengths[vi][vj] + deltaV) /             precomputed_graph_shortest_path_lengths[vi][vj]
+#             #can move safely towards vj
+#             new_beta = (beta * precomputed_graph_shortest_path_lengths[vi][vj] + deltaV) / \
+#             precomputed_graph_shortest_path_lengths[vi][vj]
 
-            return vi, vj, new_beta
+#             return vi, vj, new_beta
 
-        else:
+#         else:
 
-            # we are moving towards vj but have passed it -- so now we must adjust vi, vj and beta
+#             # we are moving towards vj but have passed it -- so now we must adjust vi, vj and beta
 
-            # finding vi and vj
-            # how far past vj have we moved?
-            d = deltaV - (1 - beta) * precomputed_graph_shortest_path_lengths[vi][vj]
+#             # finding vi and vj
+#             # how far past vj have we moved?
+#             d = deltaV - (1 - beta) * precomputed_graph_shortest_path_lengths[vi][vj]
 
-            # next, we will find the next node in the shortest path 
-            path = precomputed_graph_shortest_paths[vj][x]
+#             # next, we will find the next node in the shortest path 
+#             path = precomputed_graph_shortest_paths[vj][x]
 
-            # initialise list index i
-            i = 0;
+#             # initialise list index i
+#             i = 0;
             
-            # vj will be second on the shortest path from vj to x
-            new_vi = path[i]
-            new_vj = path[min(i+1, len(path) - 1)]
+#             # vj will be second on the shortest path from vj to x
+#             new_vi = path[i]
+#             new_vj = path[min(i+1, len(path) - 1)]
 
-            # keep moving vi and vj along path until remaining distance to move (d)
-            # is less than dist[new_vi, new_vj]
-            while d > precomputed_graph_shortest_path_lengths[new_vi][new_vj]:
+#             # keep moving vi and vj along path until remaining distance to move (d)
+#             # is less than dist[new_vi, new_vj]
+#             while d > precomputed_graph_shortest_path_lengths[new_vi][new_vj]:
                 
-                #reached target
-                if new_vi == x or new_vj == x:
+#                 #reached target
+#                 if new_vi == x or new_vj == x:
                     
-                    # set weight to be input vector
+#                     # set weight to be input vector
                     
-                    #set new vi to be input vector
-                    new_vi = x
+#                     #set new vi to be input vector
+#                     new_vi = x
                     
-                    #
-                    new_vj = x
+#                     #
+#                     new_vj = x
                     
-                    #
-                    d = 0
+#                     #
+#                     d = 0
                     
-                    break
+#                     break
 
-                #subtract distance between vi and vj
-                d -= precomputed_graph_shortest_path_lengths[new_vi][new_vj]
+#                 #subtract distance between vi and vj
+#                 d -= precomputed_graph_shortest_path_lengths[new_vi][new_vj]
 
-                # increment i
-                i += 1
+#                 # increment i
+#                 i += 1
                 
-                # move vi and vj along path
-                new_vi = path[i]
-                new_vj = path[i+1]
+#                 # move vi and vj along path
+#                 new_vi = path[i]
+#                 new_vj = path[i+1]
 
-            # now d < dist[new_vi, new_vj]
+#             # now d < dist[new_vi, new_vj]
 
-            # calculate new beta 
-            #new_beta = (distance_function(new_vi, v) + (beta) * \
-            #            dist[vi][vj] - move_distance) / distance_function(new_vi, v)
-            new_beta = d / precomputed_graph_shortest_path_lengths[new_vi][new_vj]
+#             # calculate new beta 
+#             #new_beta = (distance_function(new_vi, v) + (beta) * \
+#             #            dist[vi][vj] - move_distance) / distance_function(new_vi, v)
+#             new_beta = d / precomputed_graph_shortest_path_lengths[new_vi][new_vj]
 
-        return new_vi, new_vj, new_beta
+#         return new_vi, new_vj, new_beta
 
 ########################################################################################################################   
                                  
@@ -348,20 +401,14 @@ def assign_nodes(G, network, V, precomputed_graph_shortest_path_lengths):
     #distance from each datapoint (row) to each weight vector (column)
     distances = np.array([[distance(x, v, precomputed_graph_shortest_path_lengths) for v in V] for x in G.nodes()])
     
-    #minium distance for each datapoint
-    min_distances = np.min(distances, axis=1)
-    
     #index of column giving minimum distance
     arg_min_distances = np.argmin(distances, axis=1)
     
-#     print "ARG MIN DISTANCES"
-#     print arg_min_distances
+    #minium distance for each datapoint
+    min_distances = np.diagonal(np.take(distances, arg_min_distances, axis=1))
     
     #nodes corresponding to minimum index (of length len(X))
     minimum_nodes = np.array([network.nodes()[n] for n in arg_min_distances])
-    
-#     print "MINIMUM NODES"
-#     print minimum_nodes
     
     #list of neurons with no assignments
     empty_neurons = np.array([n for n in network.nodes() if n not in minimum_nodes])
@@ -369,11 +416,11 @@ def assign_nodes(G, network, V, precomputed_graph_shortest_path_lengths):
     if empty_neurons.size > 0:
     
         ################################################DELETION####################################################
+        
+        print "DELETING NODES: {}".format(empty_neurons)
 
         #neighbours of deleted neurons
         neighbour_lists = np.array([network.neighbors(n) for n in empty_neurons])
-        
-#         print "DELETING NODES: {}".format(empty_neurons)
         
         #remove the nodes
         network.remove_nodes_from(empty_neurons)
@@ -382,7 +429,7 @@ def assign_nodes(G, network, V, precomputed_graph_shortest_path_lengths):
         V = np.array([V[i] for i in range(len(V)) if i in arg_min_distances])
         
         #compute distances between all neurons in input space
-        computed_neuron_distances = compute_euclidean_distances(network, V, precomputed_graph_shortest_path_lengths)
+        computed_neuron_distances = compute_neuron_distances(network, V, precomputed_graph_shortest_path_lengths)
         
         ##connect separated components
         for neighbour_list in neighbour_lists:
@@ -393,34 +440,15 @@ def assign_nodes(G, network, V, precomputed_graph_shortest_path_lengths):
     #array of errors
     errors = np.array([np.mean(min_distances[minimum_nodes == n]) for n in network.nodes()])
     
-#     print "ERRORS"
-#     print errors
-    
     #compute MQE
     MQE = np.mean(errors)
     
-#     print "MQE={}, size of map={}".format(MQE, len(network))
-    
-    ##array of assignments
+    #array of assignments
     assignments = np.array([np.array([G.nodes()[i] for i in np.where(minimum_nodes == n)[0]]) for n in network.nodes()])
-    
-#     print "NAMES"
-#     print names
-    
-#     print "ASSIGNMENTS"
-#     print assignments
     
     #zip zith nodes
     errors = {n: e for n, e in zip(network.nodes(), errors)}
     assignments = {n: a for n, a in zip(network.nodes(), assignments)}
-    
-    print "ERRORS"
-    print errors
-    print
-    
-    print "ASSIGNMENTS"
-    print assignments
-    print
     
     nx.set_node_attributes(network, "e", errors)
     nx.set_node_attributes(network, "ls", assignments)
@@ -435,7 +463,7 @@ def neuron_distances(v1, v2, precomputed_graph_shortest_path_lengths):
               distance(v1[1], v2, precomputed_graph_shortest_path_lengths) + 1 - beta)
                                  
                                  
-def compute_euclidean_distances(network, V, precomputed_graph_shortest_path_lengths):
+def compute_neuron_distances(network, V, precomputed_graph_shortest_path_lengths):
     
     distances = np.array([[neuron_distances(v1, v2, precomputed_graph_shortest_path_lengths) for v2 in V] for v1 in V])
     
@@ -473,7 +501,10 @@ def connect_components(network, neighbour_list, computed_neuron_distances):
 ##function to identify neuron with greatest error
 def identify_error_unit(network):
     
+    number_of_assignments = {k: len(v) for k, v in nx.get_node_attributes(network, "ls").items()}
     errors = nx.get_node_attributes(network, "e")
+    
+    errors = {k: v for k, v in errors.items() if number_of_assignments[k] > 1}
     
     return max(errors, key=errors.get)
 
@@ -482,7 +513,9 @@ def identify_error_unit(network):
 def expand_network(ID, G, network, V, error_unit, precomputed_graph_shortest_path_lengths):
     
     #v goes to random vector in range of error unit
-    ls = network.node[error_unit]["ls"]    
+    ls = network.node[error_unit]["ls"]  
+    
+    #weight of new neuron
     w = initialise_weight(G.subgraph(ls))
     
     #zip nodes and distances
@@ -491,8 +524,7 @@ def expand_network(ID, G, network, V, error_unit, precomputed_graph_shortest_pat
         
     #identify neighbour pointing closet
     error_unit_neighbours = network.neighbors(error_unit)
-    
-    
+
     #id of new node
     new_node = max(network) + 1
     
@@ -525,9 +557,9 @@ def expand_network(ID, G, network, V, error_unit, precomputed_graph_shortest_pat
 ##########################################################################################################################
 
 ##GHSOM algorithm
-def ghsom(ID, G, lam, eta, sigma, e_0, e_sg, e_en, q):
+def ghsom(ID, G, num_iter, eta, sigma, e_0, e_sg, e_en, q):
     
-    print "MQE_0={}, growth target={}".format(e_0, e_0 * e_sg)
+    print "MQE_0={}, growth_target={}".format(e_0, e_0 * e_sg)
     
     precomputed_graph_shortest_paths = nx.shortest_path(G)
     precomputed_graph_shortest_path_lengths = {n1 : 
@@ -547,21 +579,20 @@ def ghsom(ID, G, lam, eta, sigma, e_0, e_sg, e_en, q):
     print "initialised network"
     
     #precompute sigmas
-    precomputed_sigmas = precompute_sigmas(sigma, lam)
+    precomputed_sigmas = precompute_sigmas(sigma, num_iter)
     
     print "precomputed sigmas"
     
     #train for lamda epochs
-    V = train_network(G, network, V, lam, eta, precomputed_sigmas, precomputed_graph_shortest_paths,
+    V = train_network(G, network, V, num_iter, eta, precomputed_sigmas, precomputed_graph_shortest_paths,
                       precomputed_graph_shortest_path_lengths)
     
     print "trained network"
-    print V
     
     #classify nodes and compute error
     MQE, num_deleted_neurons, V = assign_nodes(G, network, V, precomputed_graph_shortest_path_lengths)
     
-    print "assigned nodes MQE={}".format(MQE)
+    print "assigned nodes MQE={}, target={}".format(MQE, e_0 * e_sg)
     
     ##som growth phase
     #repeat until error is low enough
@@ -578,17 +609,16 @@ def ghsom(ID, G, lam, eta, sigma, e_0, e_sg, e_en, q):
         print "expanded network"
         
         #train for lam epochs
-        V = train_network(G, network, V, lam, eta, precomputed_sigmas, precomputed_graph_shortest_paths,
+        V = train_network(G, network, V, num_iter, eta, precomputed_sigmas, precomputed_graph_shortest_paths,
                       precomputed_graph_shortest_path_lengths)
         
         print "trained network"
-        print V
 
         #calculate mean network error
         MQE, deleted_neurons, V = assign_nodes(G, network, V, precomputed_graph_shortest_path_lengths)
         num_deleted_neurons += deleted_neurons
         
-        print "assigned nodes MQE={}".format(MQE)
+        print "assigned nodes MQE={}, target={}".format(MQE, e_0 * e_sg)
         
     print "growth terminated, MQE: {}, target: {}, number of deleted neurons: {}".format(MQE, e_0 * e_sg, num_deleted_neurons)
         
@@ -612,7 +642,7 @@ def ghsom(ID, G, lam, eta, sigma, e_0, e_sg, e_en, q):
             print "submitted job: ID={}, e={}, number of nodes={}".format(node_id, e, len(ls))
             
             #add these parameters to the queue
-            q.put((node_id, H, lam, eta, sigma, e, e_sg, e_en))
+            q.put((node_id, H, num_iter, eta, sigma, e, e_sg, e_en))
     
     #return network
     return network, MQE
@@ -680,10 +710,10 @@ def process_job(q, networks):
     
     #unpack first element of queue
     #contains all the para,eters for GHSOM
-    ID, G, lam, eta, sigma, e_0, e_sg, e_en = q.get()
+    ID, G, num_iter, eta, sigma, e_0, e_sg, e_en = q.get()
 
     #run GHSOM and return a network and MQE
-    n, e = ghsom(ID, G, lam, eta, sigma, e_0, e_sg, e_en, q)
+    n, e = ghsom(ID, G, num_iter, eta, sigma, e_0, e_sg, e_en, q)
 
     #append result to networks list
     networks.append((ID, n, e))
@@ -697,7 +727,7 @@ def worker(q, networks):
     while True:
         process_job(q, networks)
 
-def main(params, filename, lam=10000, num_threads=1):
+def main(params, filename, num_iter=10000, num_threads=1):
     
     #network
     G = nx.read_gpickle(filename)
@@ -709,7 +739,7 @@ def main(params, filename, lam=10000, num_threads=1):
     q = Queue()
     
     #add initial layer of ghsom to queue
-    q.put(("00", G, lam, params["eta"], params["sigma"], np.inf, params["e_sg"], params["e_en"]))
+    q.put(("00", G, num_iter, params["eta"], params["sigma"], np.inf, params["e_sg"], params["e_en"]))
     
     if num_threads > 1:
     
@@ -734,57 +764,36 @@ def main(params, filename, lam=10000, num_threads=1):
     return G, networks
 
 
-# In[15]:
+# In[2]:
 
-params = {'eta': 0.001,
-         'sigma': 1,
-          'e_sg': 0.6,
-         'e_en': 1.0}
+# params = {'eta': 0.0001,
+#          'sigma': 1,
+#           'e_sg': 0.7,
+#          'e_en': 1.0}
 
 
-# In[ ]:
+# In[3]:
 
-G, networks = main(params=params, filename="embedded_benchmark.gpickle", num_threads=5, lam=1000)
+# %prun G, networks = main(params=params, filename="embedded_benchmark.gpickle", num_threads=1, num_iter=1000)
 
 
 # In[4]:
 
-label_nodes(G, networks[1:])
+# label_nodes(G, networks[1:])
 
 
 # In[5]:
 
-NMI_all_layers(G, labels=["firstlevelcommunity"])
+# NMI_all_layers(G, labels=["firstlevelcommunity"])
 
 
-# In[12]:
+# In[6]:
 
-_, network, _ = networks[0]
-colours = np.random.rand(len(network), 3)
-
-
-# In[13]:
-
-visualise_graph(G=G, colours=colours, layer=1)
+# _, network, _ = networks[1]
+# colours = np.random.rand(len(network), 3)
 
 
-# In[8]:
+# In[7]:
 
-len(G)
-
-
-# In[11]:
-
-for _, network, _ in networks:
-    
-    len(network)
-    
-#     for n, d in network.nodes(data=True):
-        
-#         print d["ls"]
-
-
-# In[ ]:
-
-
+# visualise_graph(G=G, colours=colours, layer=1)
 

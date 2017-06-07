@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[18]:
+# In[3]:
 
 import numpy as np
 import networkx as nx
@@ -11,46 +11,61 @@ from threading import Thread
 from threading import current_thread
 
 from sklearn.manifold import MDS
+from sklearn.metrics.pairwise import euclidean_distances
+
+def distances(X, d):
+    return euclidean_distances(X[:,:d])
+
+def stress(distances, Ds, tri):
+    return np.sqrt(np.sum((distances[tri] - np.sqrt(Ds[tri])) ** 2) / np.sum(Ds[tri]))
     
-# def custom_mds(D, k=5, variance_preserved=0.95):
+def classic_mds(Ds):
         
-#     #centering matrix
-#     n = len(D)
-#     C = np.identity(n) - np.ones((n, n)) / n
+    #centering matrix
+    n = len(Ds)
+    C = np.identity(n) - np.ones((n, n)) / n
     
-#     #similarity matrix
-#     K = - 0.5 * np.dot(np.dot(C, D ** 2), C)
+    #double centered similarity matrix
+    K = - 0.5 * np.dot(np.dot(C, Ds), C)
     
-#     #eigen decompose K
-#     l, U = np.linalg.eigh(K)
+    #eigen decompose K
+    l, U = np.linalg.eigh(K)
     
-#     ##sort eigenvalues (and eigenvectors) into ascending order
-#     idx = l.argsort()[::-1]
-#     l = l[idx]
-#     U = U[:,idx]
+    mask = l > 0
+    l = l[mask]
+    U = U[:, mask]
+    
+    ##sort eigenvalues (and eigenvectors) into ascending order
+    idx = l.argsort()[::-1]
+    l = l[idx]
+    U = U[:,idx]
     
 #     if k < 1:
-    
-#         s = (l - l[-1]) / (l[0] - l[-1])
-#         print l
-#         print s
-
-#         total = sum(s)
+        
+#         print "attempting to preserve 95% of variance"
+        
+#         total = sum(l)
 #         k = 0
-#         var = sum(s[:k]) / total
+#         var = sum(l[:k]) / total
 #         while var < variance_preserved:
 #             k += 1
-#             var = sum(s[:k]) / total
-        
-#         print "attempting to preserve 95% of variance".format(k)
-    
+#             var = sum(l[:k]) / total
+
 #     print "embedding to {} dimensions".format(k)
     
+    #position matrix
+    X = np.dot(U, np.diag(l ** 0.5))
     
-#     #position matrix
-#     X = np.dot(U[:,:k], np.diag(l[:k] ** 0.5))
+    #upper triangle
+    tri = np.triu_indices(n=len(Ds), k = 1, m=len(Ds))
+
+    #determine the k that minimised stress
+    stresses = np.array([stress(distances(X, d), Ds, tri) for d in range(1, min(50, U.shape[1]))])
+    k = stresses.argmin() + 1
     
-#     return X
+    print "embedding to {} dimensions with stress {}".format(k, stresses[k-1])
+    
+    return X[:,:k], stresses
 
 ##function to generate benchmark graph
 def benchmark_hierarchical_graph(edge_path, c1_path, c2_path):
@@ -120,6 +135,12 @@ def set_embedding(G, X):
     
     nx.set_node_attributes(G, "embedding", embedding)
     
+    
+## get embedding
+def get_embedding(G):
+
+    return np.array([v for k, v in nx.get_node_attributes(G, "embedding").items()])
+    
 def main_hierarchical(network, first_level, second_level, filename):
     
     #import graph from file
@@ -135,14 +156,10 @@ def main_hierarchical(network, first_level, second_level, filename):
     filter_nodes_with_no_embedding(H, D)    
 
     ##to array
-    D = np.array([[D[i][j] for j in D.keys()] for i in D.keys()])
+    Ds = np.array([[D[i][j] ** 2 for j in D.keys()] for i in D.keys()])
 
-    k = 10
-    
-    print "embedding to {} dimensions".format(k)
-
-    mds = MDS(n_components = k, dissimilarity = "precomputed", n_jobs=-1, max_iter=1000)
-    X = mds.fit_transform(D)
+    #mds
+    X, stresses = classic_mds(Ds)
     
     #save embedding to nodes of G
     set_embedding(H, X)
@@ -150,7 +167,9 @@ def main_hierarchical(network, first_level, second_level, filename):
     #write gml file
     nx.write_gpickle(H, filename)
 
-def main_binary(network, first_level, filename, k = 5):
+    return X, Ds, stresses
+    
+def main_binary(network, first_level, filename):
     
     #import graph from file
     G = benchmark_graph(network, first_level)
@@ -165,10 +184,10 @@ def main_binary(network, first_level, filename, k = 5):
     filter_nodes_with_no_embedding(H, D)   
     
     ##to array
-    D = np.array([[D[i][j] for j in D.keys()] for i in D.keys()])
+    Ds = np.array([[D[i][j] ** 2 for j in D.keys()] for i in D.keys()])
     
     #mds
-    X = custom_mds(D, k = k) 
+    X, stresses = custom_mds(Ds) 
 
     
 #     print "embedding to {} dimensions".format(k)
@@ -181,8 +200,10 @@ def main_binary(network, first_level, filename, k = 5):
     
     #write gml file
     nx.write_gpickle(H, filename)
+    
+    return X, Ds, stresses
 
-def main(txt, filename, D=None, delimiter="\t", min_k = 1, max_k = 50, eps = 10, k=10):
+def main(txt, filename, D=None, delimiter="\t"):
     
     #import graph from file
     G = nx.read_edgelist(txt, delimiter=delimiter)
@@ -198,25 +219,25 @@ def main(txt, filename, D=None, delimiter="\t", min_k = 1, max_k = 50, eps = 10,
     #remove nodes from H with no embedding
     filter_nodes_with_no_embedding(H, D) 
     
-    ##to array
-    D = np.array([[D[i][j] for j in D.keys()] for i in D.keys()])
+    ##array of squared shortest path distances
+    Ds = np.array([[D[i][j] ** 2 for j in D.keys()] for i in D.keys()])
     
     print "computed distance matrix"
     
 #     #validation testing for best dimension
 #     stresses = np.array([])
     
-#     for k in [10, 20, 100, 250, 500, 1000]:
+#     for k in range(min_k, max_k + 1):
         
 #         mds = MDS(n_components = k, dissimilarity = "precomputed", n_jobs=-1, max_iter=10000)
 #         mds.fit(D)
 
 #         stress = mds.stress_
 #         X = mds.embedding_
+        
+#         print stress
 
 #         stresses = np.append(stresses, stress)
-        
-#         print "k={}, stress={}".format(k, stress)
         
 #         if len(stresses) > 1:
 #             gradient = np.gradient(stresses, 5)[-1]
@@ -227,32 +248,31 @@ def main(txt, filename, D=None, delimiter="\t", min_k = 1, max_k = 50, eps = 10,
 #                 print "BREAK"
 #                 break
     
-    mds = MDS(n_components = k, dissimilarity = "precomputed", n_jobs=-1, max_iter=10000)
-    mds.fit(D)
+#     mds = MDS(n_components = k, dissimilarity = "precomputed", n_jobs=-1, max_iter=10000)
+#     mds.fit(D)
 
-    stress = mds.stress_
-    X = mds.embedding_
-    
+#     stress = mds.stress_
+#     X = mds.embedding_
+    X, stresses = classic_mds(Ds)
     
     #save embedding to nodes of G
     set_embedding(H, X)
 
     #write gml file
     nx.write_gpickle(H, filename)
-    
-    return k, stress, X
+
+    return X, Ds, stresses
 
 
-# In[7]:
+# In[3]:
 
-G = nx.read_edgelist("reactome_edgelist.txt")
-H = max(nx.connected_component_subgraphs(G), key=len)
-D = nx.floyd_warshall(H)
+X, D, stresses = main("Uetz_screen.txt", "embedded_yeast_uetz.gpickle", delimiter="\t")
 
 
-# In[19]:
+# In[4]:
 
-stresses = main("reactome_edgelist.txt", "embedded_yeast_reactome.gpickle", D = D, k = 20)
+X, D, stresses = main_hierarchical("benchmarks/network.dat", "benchmarks/community_first_level.dat", 
+                  "benchmarks/community_second_level.dat", "benchmarks/hierarchical_benchmark.gpickle")
 
 
 # In[ ]:
@@ -260,28 +280,22 @@ stresses = main("reactome_edgelist.txt", "embedded_yeast_reactome.gpickle", D = 
 stresses
 
 
-# In[22]:
+# In[34]:
 
-import matplotlib.pyplot as plt
-
-
-# In[24]:
-
-plt.plot(stresses)
-plt.show()
+G = nx.read_gpickle("benchmarks/hierarchical_benchmark.gpickle")
 
 
-# In[4]:
+# In[35]:
 
-main_binary("benchmarks/network.dat", "benchmarks/community.dat", "embedded_benchmark.gpickle", k = 10)
-
-
-# In[9]:
-
-G = nx.read_gpickle("embedded_yeast_reactome.gpickle")
+X = get_embedding(G)
 
 
-# In[10]:
+# In[36]:
+
+X.shape
+
+
+# In[37]:
 
 G.nodes(data=True)
 

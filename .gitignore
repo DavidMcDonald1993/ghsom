@@ -1,0 +1,11 @@
+*.txt
+*.csv
+*.pkl
+*.tsv
+*.gml
+*.gpickle
+*.layout
+*.tab
+/*communities*/
+*.zip
+

@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[5]:
+# In[1]:
 
 import os
 import pickle
@@ -13,7 +13,8 @@ import numpy as np
 import pandas as pd
 
 # from ghsom import main_no_labels as ghsom_main
-from ghsom_parallel import main as ghsom_main
+# from ghsom_parallel import main as ghsom_main
+from ghsom_parallel_edge_constrained import main as ghsom_main
 
 def save_obj(obj, name):
     with open(name + '.pkl', 'wb') as f:
@@ -38,7 +39,7 @@ for data in ["yeast_reactome"]:
     print
     
 #     for e_sg in [0.7, 0.6, 0.5, 0.4]:
-    for e_sg in [0.7]:
+    for e_sg in [0.6]:
         
         print "e_sg={}".format(e_sg)
         print
@@ -70,7 +71,7 @@ for data in ["yeast_reactome"]:
 #                 save_obj((G, map), map_file)
 #                 print '\nnumber of communities found: {}, saved maps to {}'.format(len(map), map_file)
 
-                G, networks = ghsom_main(params, '../embedded_{}.gpickle'.format(data), lam=1000, num_threads=5)
+                G, networks = ghsom_main(params, '../embedded_{}.gpickle'.format(data), num_iter=1000, num_threads=5)
                 save_obj((G, networks), map_file)
                 print '\nnumber of maps grown: {}, saved maps to {}'.format(len(networks), map_file)
 
@@ -105,7 +106,7 @@ for data in ["yeast_reactome"]:
             gene_assignments = {k: v for k, v in zip(genes, 
                 np.array([["" for j in range(10)] for i in range(len(genes))], dtype="S20"))}
             
-            for id, network, e in networks:
+            for id, network, e in networks[1:]:
 
                 #shortest path matrix
                 shortest_path = nx.floyd_warshall_numpy(network)

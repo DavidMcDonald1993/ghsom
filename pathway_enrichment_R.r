@@ -8,15 +8,15 @@ library(topGO)
 file <- "yeast_reactome"
 
 ont <- "BP"
-e_sg <- 0.7
-e_en <- 0.6
+e_sg <- 0.8
+e_en <- 0.3
 
 db <- org.Sc.sgd.db
-# mapping <- "org.Sc.sgd.db"
-# ID <- "ENSEMBL"
+mapping <- "org.Sc.sgd.db"
+ID <- "ENTREZID"
 
 ##load all community gene lists
-setwd(sprintf("/home/david/Documents/ghsom/hierarchical_exploration/%s_hierarchy_communities_%s_%s", file, e_sg, e_en))
+setwd(sprintf("/home/david/Documents/ghsom/hierarchical_exploration_10000/%s_hierarchy_communities_%s_%s", file, e_sg, e_en))
 # setwd(sprintf("/home/david/Desktop/%s_hierarchy_communities_%s", file, e_sg))
 
 generateMap <- function(filename){
@@ -63,7 +63,9 @@ communities <- unique(as.character(assignments))
 communities <- communities[communities != ""]
 communities <- sort(communities)
 
-assignments
+communities
+
+length(communities)
 
 getDepth <- function(com) {
     return(which(apply(assignments, 2, function(i) any(i == com))))
@@ -82,6 +84,29 @@ getSubCommunities <- function(com){
     } else {
         return (NULL)
     }
+    
+}
+                       
+getAllSubCommunities <- function(com){
+    
+    subCommunities <- getSubCommunities(com)
+    if (NA %in% subCommunities){
+        return(NULL)
+    }
+    q <- as.list(subCommunities)
+    allSubCommunities <- subCommunities
+    
+    while (length(q) > 0){
+        com <- q[[1]]
+        q <- q[-1]
+        subCommunities <- getSubCommunities(com)
+        if (!NA %in% subCommunities){
+            q <- append(q, subCommunities)
+            allSubCommunities <- append(allSubCommunities, subCommunities)
+        }
+    }
+    
+    return(allSubCommunities)
     
 }
 
@@ -106,20 +131,41 @@ getNeighbours <- function(com){
 
 genesInCommunities <- sapply(communities, function(i) getGenes(i))
 
-genesInCommunities
+allGenes <- allGenes[!is.na(allGenes)]
 
-lengths(genesInCommunities)
+enrichmentResultsFile <- "enrichmentResults.rda"
+if (!file.exists(enrichmentResultsFile)) {
+       enrichmentResults <- sapply(genesInCommunities, 
+                            function (genes) enrichPathway(gene = genes, organism = "yeast", minGSSize = 5,  
+                                                           pAdjustMethod = "none"))
+       names(enrichmentResults) <- communities
+       save(enrichmentResults, file=enrichmentResultsFile)
+        print("saving")
+} else {
+       load(enrichmentResultsFile)    
+        print("loaded")
+}
 
-enrichmentResults <- sapply(genesInCommunities, 
-                            function (i) enrichPathway(gene = i, universe = allGenesInDB, organism = "yeast"))
-names(enrichmentResults) <- communities
+df <- as.data.frame(enrichmentResults[["01"]])
 
-sapply(enrichmentResults, function(i) nrow(as.data.frame(i)))
+head(df)
 
-x  <- enrichmentResults[["01-02"]]
-head(as.data.frame(x))
+pathways <- df$Description
 
-# x <- enrichmentResults[["01-05"]]
+genes <- df$geneID
+
+genes <- sapply(genes, function(i) strsplit(i, "/"))
+
+genes <- sapply(genes, function(i) select(db, i, "UNIPROT", "ENTREZID")$UNIPROT)
+names(genes) <- pathways    
+
+genes
+
+cat(sapply(pathways, toString), file="pathways.csv", sep="\n")
+
+cat(sapply(genes, toString), file="pathway_genes.csv", sep="\n")
+
+write.csv(genes, file="pathway_genes.csv", sep=",")
 
 # nrow(as.data.frame(x))
 
@@ -130,10 +176,15 @@ head(as.data.frame(x))
 # enrichMap(x, layout=igraph::layout.kamada.kawai, vertex.label.cex = 1)
 
 numbersOfEnrichedPathways <- sapply(enrichmentResults, function(i) nrow(as.data.frame(i)))
-enrichedCommunities <- genesInCommunities[numbersOfEnrichedPathways > 0]
+enrichedCommunities <- genesInCommunities[numbersOfEnrichedPathways > 0 & lengths(genesInCommunities) > 3]
+
+numbersOfEnrichedPathways
+
+data.frame(numbersOfEnrichedPathways, lengths(genesInCommunities))
 
 res <- compareCluster(enrichedCommunities, 
-                      fun="enrichPathway", universe = allGenesInDB, organism = "yeast")
+                      fun="enrichPathway", universe = allGenesInDB, organism = "yeast", minGSSize = 5,  
+                                                           pAdjustMethod = "none")
 
 png(filename=sprintf("community_pathway_enrichment_all_communities.png"), width=1500)
 plot(res)
@@ -141,30 +192,44 @@ dev.off()
 
 plotPathwayEnrichments <- function(community){
     
+#     subCommunities <- getAllSubCommunities(community)
     subCommunities <- getSubCommunities(community)
     
-    if (!is.null(subCommunities) && !any(is.na(subCommunities) > 0)) {
+    if (!is.null(subCommunities) && !NA %in% subCommunities) {
 
         communitiesOfInterest <- c(community, subCommunities)
-#         print(communitiesOfInterest)
         genesOfInterest <- enrichedCommunities[communitiesOfInterest]
         genesOfInterest <- genesOfInterest[!is.na(names(genesOfInterest))]
-#         print (genesOfInterest)
         
-        if (length(genesOfInterest) > 2) {
-            res <- compareCluster(genesOfInterest,
-            fun="enrichPathway", universe = allGenesInDB, organism = "yeast")
+        if (length(genesOfInterest) > 1) {
+            res <- compareCluster(genesOfInterest, 
+            fun="enrichPathway", organism = "yeast", minGSSize = 5,  pAdjustMethod = "none")
 
-            png(filename=sprintf("community_pathway_enrichment_%s.png", community), width=500 + length(genesOfInterest) * 150)
+            png(filename=sprintf("community_pathway_enrichment_%s.png", community), 
+                width=500 + length(genesOfInterest) * 150)
             print(plot(res))
             dev.off()
         } 
         
     }
+    
+    print(sprintf("completed %s", community))
 
 }
 
 sapply(communities, plotPathwayEnrichments)
+
+factorClusters <- lapply(enrichedCommunities, function(genes) {
+    f <- factor(as.integer(allGenesInDB%in%genes))
+    names(f) <- allGenesInDB
+    return(f)
+})
+
+coms <- factorClusters[getSubCommunities("01")]
+m1 <- compareCluster(coms[!is.na(names(coms))], fun="enrichGO", 
+                     OrgDb=mapping, minGSSize = 5,  pAdjustMethod = "none")
+
+compareCluster(c(getGenes("01-02-02-02"), getGenes("01-02-02-03")), fun="groupGO", OrgDb=mapping)
 
 # viewPathway(pathName = "Nonsense Mediated Decay (NMD) enhanced by the Exon Junction Complex (EJC)", 
 #             organism = "yeast", readable = F)
@@ -184,5 +249,45 @@ GOenrichmentResults <- sapply(genesInCommunities, function(genesOfInterest) {
 )
 
 rownames(GOenrichmentResults) <- c("terms", "p-values", "genes")
+colnames(GOenrichmentResults) <- communities
+
+GOenrichmentResults[["terms", "01-05"]]
+
+getSubCommunities("01-05")
+
+GOenrichmentResults[["terms", "01-05-08"]]
+
+getGenes("01-05")
+
+library(GOSemSim)
+
+scGO <- godata(OrgDb = mapping, keytype = ID, ont = ont)
+
+clusterSimFile <- "clusterSimilarity.rda"
+if (!file.exists(clusterSimFile)){
+    clusterSim <- mclusterSim(clusters=genesInCommunities, semData=scGO)
+    save(clusterSim, file=clusterSimFile)
+    print("saved")
+} else {
+    load(clusterSimFile)
+    print("loaded")
+}
+
+communitiesOfInterest <- c(getSubCommunities("01"), getSubCommunities("01-02"))
+
+length(communitiesOfInterest)
+
+clusterSim <- mclusterSim(clusters=genesInCommunities[communitiesOfInterest], semData=scGO)
+
+clusterSim
+
+library(gridExtra)
+grid.table(clusterSim[sort(getSubCommunities("01")),sort(getSubCommunities("01"))])
+
+grid.table(getShortestPath("01"))
+
+grid.table(clusterSim[sort(getSubCommunities("01-02"))[1:6],sort(getSubCommunities("01-02"))[1:6]])
+
+grid.table(getShortestPath("01-02")[1:6, 1:6])
 
 
